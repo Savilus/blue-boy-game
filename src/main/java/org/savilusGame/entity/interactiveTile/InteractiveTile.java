@@ -1,27 +1,30 @@
 package org.savilusGame.entity.interactiveTile;
 
-import static org.savilusGame.GamePanel.TILE_SIZE;
-
-import java.awt.*;
-
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.InteractiveObject;
+import org.savilusGame.service.Destructible;
 
 import lombok.Getter;
 import lombok.Setter;
 
-
 @Getter
 @Setter
-public class InteractiveTile extends GameEntity {
+public class InteractiveTile extends InteractiveObject implements Destructible {
 
   private boolean destructible = false;
 
   public InteractiveTile(GamePanel gamePanel) {
     super(gamePanel);
+    invincibleTime = 20;
   }
 
-  public boolean isCorrectItem(GameEntity item) {
+  @Override
+  public boolean isDestructible() {
+    return destructible;
+  }
+
+  public boolean isCorrectItem(Actor actor) {
     return false;
   }
 
@@ -32,29 +35,5 @@ public class InteractiveTile extends GameEntity {
     return null;
   }
 
-  @Override
-  public void draw(Graphics2D graphics2D) {
-    int screenX = worldX - gamePanel.getPlayer().getWorldX() + gamePanel.getPlayer().getScreenX();
-    int screenY = worldY - gamePanel.getPlayer().getWorldY() + gamePanel.getPlayer().getScreenY();
 
-    if (worldX + TILE_SIZE > gamePanel.getPlayer().getWorldX() - gamePanel.getPlayer().getScreenX() &&
-        worldX - TILE_SIZE < gamePanel.getPlayer().getWorldX() + gamePanel.getPlayer().getScreenX() &&
-        worldY + TILE_SIZE > gamePanel.getPlayer().getWorldY() - gamePanel.getPlayer().getScreenY() &&
-        worldY - TILE_SIZE < gamePanel.getPlayer().getWorldY() + gamePanel.getPlayer().getScreenY()) {
-
-      graphics2D.drawImage(mainImage, screenX, screenY, null);
-
-    }
-  }
-
-  @Override
-  public void update() {
-    if (invincible) {
-      invincibleCounter++;
-      if (invincibleCounter > 20) {
-        invincible = false;
-        invincibleCounter = 0;
-      }
-    }
-  }
 }

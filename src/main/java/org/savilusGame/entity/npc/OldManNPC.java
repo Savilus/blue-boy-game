@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Random;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
@@ -23,7 +24,7 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class OldManNPC extends GameEntity {
+public class OldManNPC extends Actor {
 
   static final int ACTION_INTERVAL = 120;
   static final String OLD_MAN_DIALOGUES_KEY = "oldManNpc";
@@ -34,20 +35,19 @@ public class OldManNPC extends GameEntity {
 
     direction = Direction.DOWN;
     speed = 1;
-    type = WorldGameTypes.INTERACTIVE;
     getPlayerImage();
-    dialogues = TextManager.getAllDialoguesForTarget(OLD_MAN_DIALOGUES_KEY);
+    setDialogues(TextManager.getAllDialoguesForTarget(OLD_MAN_DIALOGUES_KEY));
   }
 
   private void getPlayerImage() {
-    up1 = setup(OLD_MAN_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = setup(OLD_MAN_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = setup(OLD_MAN_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = setup(OLD_MAN_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = setup(OLD_MAN_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = setup(OLD_MAN_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = setup(OLD_MAN_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = setup(OLD_MAN_RIGHT2, TILE_SIZE, TILE_SIZE);
+    up1 = SpriteLoader.load(OLD_MAN_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = SpriteLoader.load(OLD_MAN_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = SpriteLoader.load(OLD_MAN_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = SpriteLoader.load(OLD_MAN_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = SpriteLoader.load(OLD_MAN_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = SpriteLoader.load(OLD_MAN_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = SpriteLoader.load(OLD_MAN_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = SpriteLoader.load(OLD_MAN_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

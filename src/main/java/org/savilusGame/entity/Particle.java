@@ -10,14 +10,14 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Particle extends GameEntity {
+public class Particle extends Actor {
 
   final Color color;
   final int size;
   final int xd;
   int yd;
 
-  public Particle(GamePanel gamePanel, GameEntity generator, Color color, int size, int speed, int maxLife, int xd, int yd) {
+  public Particle(GamePanel gamePanel, int worldX, int worldY, Color color, int size, int speed, int maxLife, int xd, int yd) {
     super(gamePanel);
     this.color = color;
     this.size = size;
@@ -28,8 +28,8 @@ public class Particle extends GameEntity {
 
     currentLife = maxLife;
     int offset = (TILE_SIZE / 2) - (size / 2);
-    worldX = generator.worldX + offset;
-    worldY = generator.worldY + offset;
+    this.worldX = worldX + offset;
+    this.worldY = worldY + offset;
   }
 
   @Override

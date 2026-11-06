@@ -9,10 +9,6 @@ import static org.savilusGame.enums.Direction.LEFT;
 import static org.savilusGame.enums.Direction.RIGHT;
 import static org.savilusGame.enums.Direction.UP;
 import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
-import static org.savilusGame.enums.GameState.DIALOG_STATE;
-import static org.savilusGame.enums.WorldGameTypes.MONSTER;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -24,20 +20,21 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import javax.imageio.ImageIO;
-
-import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.items.Chest;
+import org.savilusGame.entity.item.Item;
+import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.entity.projectile.Projectile;
 import org.savilusGame.enums.Direction;
-import org.savilusGame.enums.WorldGameTypes;
-import org.savilusGame.utils.UtilityTool;
+import org.savilusGame.service.DialogueSpeaker;
+import org.savilusGame.service.DialogueStarter;
+import org.savilusGame.service.Movable;
+import org.savilusGame.service.ParticleSpec;
+import org.savilusGame.utils.CameraUtil;
+import org.savilusGame.utils.ParticleUtil;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.utils.text.TextManager;
 
-import io.vavr.control.Try;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -52,7 +49,7 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PROTECTED)
-public abstract class GameEntity {
+public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, ParticleSpec {
 
   private static final String EVENT_MESSAGES = "eventMessages";
   private static final int PARRY_WINDOW = 10;
@@ -74,11 +71,10 @@ public abstract class GameEntity {
   int solidAreaDefaultX, solidAreaDefaultY;
   Map<String, List<String>> dialogues;
   boolean collision = false;
-  GameEntity attacker;
-  GameEntity linkedEntity;
+  Actor attacker;
 
   // STATE
-  private String dialogueSet = StringUtils.EMPTY;
+  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
   private int dialogueIndex = 0;
   Direction direction = Direction.ANY;
   int spriteNum = 1;
@@ -95,8 +91,6 @@ public abstract class GameEntity {
   boolean guarding = false;
   boolean transparent = false;
   boolean offBalance = false;
-  GameEntity loot;
-  boolean opened = false;
   boolean inRage = false;
   boolean sleep = false;
   private boolean temporaryObject = false;
@@ -110,6 +104,7 @@ public abstract class GameEntity {
   int level;
   int strength;
   int attack;
+  int attackValue;
   int dexterity;
   int ammo;
   int exp;
@@ -120,10 +115,12 @@ public abstract class GameEntity {
   int mana;
   int firstAttackMotionDuration;
   int secondAttackMotionDuration;
+  int knockBackPower = 0;
   boolean boss;
-  GameEntity currentLightItem;
-  GameEntity currentWeapon;
-  GameEntity currentShield;
+  boolean monster = false;
+  Item currentLightItem;
+  Item currentWeapon;
+  Item currentShield;
   Projectile projectile;
 
   // COUNTER
@@ -137,33 +134,21 @@ public abstract class GameEntity {
   int guardCounter = 0;
   int offBalanceCounter = 0;
 
-  // ITEM ATTRIBUTES
-  int attackValue;
-  int defenseValue;
-  String description;
-  int value;
-  final int maxInventorySize = 20;
-  ArrayList<GameEntity> inventory = new ArrayList<>();
-  int price;
-  int knockBackPower = 0;
-  boolean stackable = false;
-  int amount = 1;
-  int lightRadius;
+  // INVENTORY
+  ArrayList<Item> inventory = new ArrayList<>();
 
-  //Type
-  WorldGameTypes type;
-
-  public GameEntity(GamePanel gamePanel) {
+  public Actor(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
-    dialogues = TextManager.getAllDialoguesForTarget(EVENT_MESSAGES);
+    setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
 
-  public void startDialogue(GameEntity entity, String selectedDialogue) {
-    if (gamePanel.getGameState() != CUTSCENE_STATE) {
-      gamePanel.setGameState(DIALOG_STATE);
-    }
-    gamePanel.getUi().setDialogueObject(entity);
-    dialogueSet = selectedDialogue;
+  public boolean isMonster() {
+    return monster;
+  }
+
+  @Override
+  public void startDialogue(DialogueSpeaker speaker, String selectedDialogue) {
+    DialogueStarter.start(gamePanel, speaker, selectedDialogue);
   }
 
   public void update() {
@@ -290,12 +275,9 @@ public abstract class GameEntity {
     }
   }
 
-  public void dropItem(GameEntity droppedItem) {
-    droppedItem.worldX = worldX;
-    droppedItem.worldY = worldY;
-    gamePanel.getMapsObjects()
-        .computeIfAbsent(CURRENT_MAP, key -> new ArrayList<>())
-        .add(droppedItem);
+  /** Drop the given item as a world pickup at this actor's position. */
+  public void dropItem(Item item) {
+    gamePanel.getWorld().dropItem(item, worldX, worldY);
   }
 
   public Color getParticleColor() {
@@ -314,36 +296,6 @@ public abstract class GameEntity {
     return 0;
   }
 
-  public int getDetected(GameEntity user, Map<String, List<GameEntity>> target, String targetName) {
-    int index = INIT_INDEX;
-    var gameObjects = target.get(CURRENT_MAP);
-    // Check the surround object
-    int nextWorldX = user.getLeftX();
-    int nextWorldY = user.getTopY();
-    int playerSpeed = getPlayer().speed;
-    switch (user.direction) {
-      case UP -> nextWorldY = user.getTopY() - playerSpeed;
-      case DOWN -> nextWorldY = user.getBottomY() + playerSpeed;
-      case LEFT -> nextWorldX = user.getLeftX() - playerSpeed;
-      case RIGHT -> nextWorldX = user.getRightX() + playerSpeed;
-    }
-
-    int col = nextWorldX / TILE_SIZE;
-    int row = nextWorldY / TILE_SIZE;
-
-    for (int objectIndex = 0; objectIndex < gameObjects.size(); objectIndex++) {
-      var gameObject = gameObjects.get(objectIndex);
-      if (Objects.nonNull(gameObject)) {
-        if (gameObject.getCol() == col
-            && gameObject.getRow() == row && gameObject.name.equals(targetName)) {
-          index = objectIndex;
-        }
-      }
-    }
-
-    return index;
-  }
-
   public void getRandomDirection(int interval) {
     actionLockCounter++;
     if (actionLockCounter > interval) {
@@ -358,7 +310,7 @@ public abstract class GameEntity {
     }
   }
 
-  public GameEntity setWorldPosition(int worldX, int worldY) {
+  public Actor setWorldPosition(int worldX, int worldY) {
     this.worldX = worldX;
     this.worldY = worldY;
     return this;
@@ -384,14 +336,6 @@ public abstract class GameEntity {
     offBalanceCounter = 0;
   }
 
-  public boolean use(GameEntity gameEntity) {
-    return true;
-  }
-
-  public Chest setLoot(GameEntity loot) {
-    return null;
-  }
-
   void attacking() {
     spriteCounter++;
     if (spriteCounter <= firstAttackMotionDuration) {
@@ -410,33 +354,30 @@ public abstract class GameEntity {
         case UP -> worldY -= attackArea.height;
         case DOWN -> worldY += attackArea.height;
         case LEFT -> worldX -= attackArea.width;
-        case RIGHT -> worldX += attackArea.height;
+        case RIGHT -> worldX += attackArea.width;
       }
       // attackArea becomes solid area
       solidArea.width = attackArea.width;
       solidArea.height = attackArea.height;
 
-      if (type == MONSTER) {
+      if (monster) {
         if (gamePanel.getCollisionDetector().checkPlayer(this)) {
           damagePlayer(attackValue);
         }
       } else {
         // check monster collision with updated worldX, worldY and solidArea
-        int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getMapsMonsters().get(CURRENT_MAP));
-        getPlayer().damageMonster(this, monsterIndex, attack, currentWeapon.knockBackPower);
+        int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
+        getPlayer().damageMonster(this, monsterIndex, attack, currentWeapon.getKnockBackPower());
 
         int interactiveTileIndex = gamePanel.getCollisionDetector().checkEntity(
             this,
-            Optional.ofNullable(gamePanel.getMapsInteractiveTiles().get(CURRENT_MAP))
+            Optional.ofNullable(gamePanel.getWorld().currentInteractiveTiles())
                 .orElse(Collections.emptyList())
-                .stream()
-                .map(tile -> (GameEntity) tile)
-                .collect(Collectors.toList())
         );
 
         getPlayer().damageInteractiveTile(interactiveTileIndex);
 
-        int projectileIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getProjectiles().get(CURRENT_MAP));
+        int projectileIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentProjectiles());
         getPlayer().damageProjectile(projectileIndex);
       }
 
@@ -451,12 +392,13 @@ public abstract class GameEntity {
     }
   }
 
+
   int getCenterX() {
-    return worldX + up1.getHeight() / 2;
+    return worldX + solidArea.x + solidArea.width / 2;
   }
 
   int getCenterY() {
-    return worldY + up1.getWidth() / 2;
+    return worldY + solidArea.y + solidArea.height / 2;
   }
 
   protected void searchPath(int goalCol, int goalRow) {
@@ -521,33 +463,18 @@ public abstract class GameEntity {
     collisionOn = false;
     gamePanel.getCollisionDetector().checkTile(this);
     gamePanel.getCollisionDetector().checkObject(this, false);
-    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getMapsNpc().get(CURRENT_MAP));
-    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getMapsMonsters().get(CURRENT_MAP));
-    gamePanel.getCollisionDetector().checkEntity(this, new ArrayList<>(
-        Optional.ofNullable(gamePanel.getMapsInteractiveTiles().get(CURRENT_MAP))
-            .orElse(Collections.emptyList())
-    ));
+    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentNpc());
+    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
+    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentInteractiveTiles());
     boolean contactPlayer = gamePanel.getCollisionDetector().checkPlayer(this);
 
-    if (this.type == MONSTER && contactPlayer && !gamePanel.getPlayer().invincible) {
+    if (monster && contactPlayer && !gamePanel.getPlayer().invincible) {
       damagePlayer(attack);
     }
   }
 
-  protected void generateParticle(GameEntity generator, GameEntity target) {
-    Color color = generator.getParticleColor();
-    int size = generator.getParticleSize();
-    int speed = generator.getParticleSpeed();
-    int maxLife = generator.getParticleMaxLife();
-
-    int[][] directions = {
-        {-2, -1}, {2, -1}, {-2, 1}, {2, 1}
-    };
-
-    for (int[] direction : directions) {
-      var particle = new Particle(gamePanel, target, color, size, speed, maxLife, direction[0], direction[1]);
-      gamePanel.getParticleList().add(particle);
-    }
+  protected void generateParticle(ParticleSpec source, int targetWorldX, int targetWorldY) {
+    ParticleUtil.burst(gamePanel, targetWorldX, targetWorldY, source);
   }
 
   protected void facePlayer() {
@@ -570,16 +497,16 @@ public abstract class GameEntity {
     if (getPlayer().guarding && getPlayer().direction == canGuardDirection) {
       if (getPlayer().guardCounter < PARRY_WINDOW) {
         damage = 0;
-        gamePanel.playSoundEffect(PARRY);
+        gamePanel.playSE(PARRY);
         setKnockBack(this, getPlayer(), knockBackPower);
         offBalance = true;
         spriteCounter = DELAY_SPRITE_CHANGE;
       } else {
         damage = Math.max(damage / 3, 1);
-        gamePanel.playSoundEffect(BLOCKED);
+        gamePanel.playSE(BLOCKED);
       }
     } else {
-      gamePanel.playSoundEffect(RECEIVE_DAMAGE);
+      gamePanel.playSE(RECEIVE_DAMAGE);
       damage = Math.max(damage, 1);
     }
 
@@ -592,22 +519,15 @@ public abstract class GameEntity {
     getPlayer().invincible = true;
   }
 
-
-  protected BufferedImage setup(String imagePath, int width, int height) {
-    return Try.of(() -> ImageIO.read(Objects.requireNonNull(getClass().getResourceAsStream(imagePath))))
-        .map(image -> UtilityTool.scaleImage(image, width, height))
-        .getOrElseThrow(() -> new RuntimeException("Failed to load image: " + imagePath));
-  }
-
-  protected int getTileDistance(GameEntity target) {
+  protected int getTileDistance(Actor target) {
     return (getXDistance(target) + getYDistance(target)) / TILE_SIZE;
   }
 
-  protected int getGoalCol(GameEntity target) {
+  protected int getGoalCol(Actor target) {
     return (target.worldX + target.solidArea.x) / TILE_SIZE;
   }
 
-  protected int getGoalRow(GameEntity target) {
+  protected int getGoalRow(Actor target) {
     return (target.worldY + target.solidArea.y) / TILE_SIZE;
   }
 
@@ -653,13 +573,13 @@ public abstract class GameEntity {
     int randomNumber = new Random().nextInt(rate);
     if (randomNumber == 0 && !projectile.isAlive() && shootAvailableCounter == shotInterval) {
       projectile.set(worldX, worldY, direction, true, this);
-      List<GameEntity> projectilesList = gamePanel.getProjectiles().get(CURRENT_MAP);
+      List<Actor> projectilesList = gamePanel.getWorld().currentProjectiles();
       projectilesList.add(projectile);
       shootAvailableCounter = 0;
     }
   }
 
-  protected void checkIfShouldStopChasing(GameEntity target, int distance, int rate) {
+  protected void checkIfShouldStopChasing(Actor target, int distance, int rate) {
     if (getTileDistance(target) > distance) {
       int randomChance = new Random().nextInt(rate);
       if (randomChance == 0) {
@@ -668,7 +588,7 @@ public abstract class GameEntity {
     }
   }
 
-  protected void checkIfShouldStartChasing(GameEntity target, int distance, int rate) {
+  protected void checkIfShouldStartChasing(Actor target, int distance, int rate) {
     if (getTileDistance(target) < distance) {
       int randomChance = new Random().nextInt(rate);
       if (randomChance == 0) {
@@ -677,7 +597,7 @@ public abstract class GameEntity {
     }
   }
 
-  protected void setKnockBack(GameEntity target, GameEntity attacker, int knockBackPower) {
+  protected void setKnockBack(Actor target, Actor attacker, int knockBackPower) {
     this.attacker = attacker;
     target.knockBackDirection = attacker.direction;
     if (knockBackPower == 0) return;
@@ -702,35 +622,27 @@ public abstract class GameEntity {
     graphics2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
   }
 
-  private int getLeftX() {
+  int getLeftX() {
     return worldX + solidArea.x;
   }
 
-  private int getRightX() {
+  int getRightX() {
     return worldX + solidArea.x + solidArea.width;
   }
 
-  private int getTopY() {
+  int getTopY() {
     return worldY + solidArea.y;
   }
 
-  private int getBottomY() {
+  int getBottomY() {
     return worldY + solidArea.y + solidArea.height;
   }
 
-  private int getCol() {
-    return (worldX + solidArea.x) / TILE_SIZE;
-  }
-
-  private int getRow() {
-    return (worldY + solidArea.y) / TILE_SIZE;
-  }
-
-  private int getXDistance(GameEntity target) {
+  int getXDistance(Actor target) {
     return Math.abs(getCenterX() - target.getCenterX());
   }
 
-  private int getYDistance(GameEntity target) {
+  int getYDistance(Actor target) {
     return Math.abs(getCenterY() - target.getCenterY());
   }
 
@@ -747,13 +659,10 @@ public abstract class GameEntity {
   public void speak() {
   }
 
-  public void interact() {
-  }
-
   public void checkDrop() {
   }
 
+  @Override
   public void move(Direction direction) {
   }
-
 }

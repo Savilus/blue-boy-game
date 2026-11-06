@@ -1,10 +1,10 @@
 package org.savilusGame.entity.projectile;
 
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.Direction;
 
 import lombok.Getter;
@@ -12,21 +12,21 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public abstract class Projectile extends GameEntity {
+public abstract class Projectile extends Actor {
 
   private final int SPRITE_CHANGE_INTERVAL = 12;
-  private GameEntity owner;
+  private Actor owner;
   private int useCost;
 
   protected Projectile(GamePanel gamePanel) {
     super(gamePanel);
   }
 
-  public abstract void substractResource(GameEntity user);
+  public abstract void substractResource(Actor user);
 
-  public abstract boolean haveResource(GameEntity user);
+  public abstract boolean haveResource(Actor user);
 
-  public void set(int worldX, int worldY, Direction direction, boolean alive, GameEntity owner) {
+  public void set(int worldX, int worldY, Direction direction, boolean alive, Actor owner) {
     this.worldX = worldX;
     this.worldY = worldY;
     this.direction = direction;
@@ -39,17 +39,18 @@ public abstract class Projectile extends GameEntity {
   public void update() {
 
     if (owner == gamePanel.getPlayer()) {
-      int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getMapsMonsters().get(CURRENT_MAP));
+      int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
       if (monsterIndex != INIT_INDEX) {
         gamePanel.getPlayer().damageMonster(this, monsterIndex, Math.max(1, attack * (gamePanel.getPlayer().getLevel() / 2)), knockBackPower);
-        generateParticle(owner.getProjectile(), gamePanel.getMapsMonsters().get(CURRENT_MAP).get(monsterIndex));
+        var struck = gamePanel.getWorld().currentMonsters().get(monsterIndex);
+        generateParticle(owner.getProjectile(), struck.getWorldX(), struck.getWorldY());
         alive = false;
       }
     } else {
       boolean contactPlayer = gamePanel.getCollisionDetector().checkPlayer(this);
       if (!gamePanel.getPlayer().isInvincible() && contactPlayer) {
         damagePlayer(attackValue);
-        generateParticle(owner.getProjectile(), owner.getProjectile());
+        generateParticle(owner.getProjectile(), owner.getProjectile().getWorldX(), owner.getProjectile().getWorldY());
         alive = false;
       }
     }

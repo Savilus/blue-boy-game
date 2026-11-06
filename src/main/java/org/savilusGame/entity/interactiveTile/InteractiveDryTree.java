@@ -8,7 +8,8 @@ import static org.savilusGame.enums.WorldGameTypes.AXE;
 import java.awt.*;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 
 public class InteractiveDryTree extends InteractiveTile {
 
@@ -18,7 +19,7 @@ public class InteractiveDryTree extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    mainImage = setup(DRY_TREE, TILE_SIZE, TILE_SIZE);
+    mainImage = SpriteLoader.load(DRY_TREE, TILE_SIZE, TILE_SIZE);
     setDestructible(true);
   }
 
@@ -44,7 +45,7 @@ public class InteractiveDryTree extends InteractiveTile {
 
   @Override
   public void playSoundEffect() {
-    gamePanel.playSoundEffect(DESTROY_TREE);
+    gamePanel.playSE(DESTROY_TREE);
   }
 
   @Override
@@ -53,7 +54,7 @@ public class InteractiveDryTree extends InteractiveTile {
   }
 
   @Override
-  public boolean isCorrectItem(GameEntity item) {
-    return item.getCurrentWeapon().getType() == AXE;
+  public boolean isCorrectItem(Actor actor) {
+    return actor.getCurrentWeapon().getType() == AXE;
   }
 }

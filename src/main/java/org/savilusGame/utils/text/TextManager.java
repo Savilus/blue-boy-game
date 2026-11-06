@@ -6,8 +6,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.savilusGame.enums.GameObject;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.FieldDefaults;
@@ -39,9 +37,12 @@ public class TextManager {
   static Map<String, String> formatKeys = new HashMap<>();
 
   static {
-    formatKeys.put(GameObject.CHEST.getTextKey(), COLLECT_ITEM);
-    formatKeys.put(GameObject.RED_POTION.getTextKey(), USE);
-    formatKeys.put(GameObject.KEY.getTextKey(), OPEN_DOOR);
+    // Keyed by the textKey values of GameObject.CHEST / RED_POTION / KEY (kept as literals on
+    // purpose: TextManager must not depend on the GameObject class-init order, since the
+    // GameObject constructor itself calls TextManager.getItemName).
+    formatKeys.put("chest", COLLECT_ITEM);
+    formatKeys.put("redPotion", USE);
+    formatKeys.put("key", OPEN_DOOR);
     formatKeys.put(EVENT_MESSAGES_KEY, LVL_UP);
   }
 

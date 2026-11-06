@@ -7,14 +7,15 @@ import static org.savilusGame.config.GameEntityNameFactory.BAT_DOWN2;
 import java.util.Random;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.items.BronzeCoin;
 import org.savilusGame.entity.items.Heart;
 import org.savilusGame.entity.items.ManaCrystal;
 import org.savilusGame.enums.MonsterType;
 import org.savilusGame.enums.WorldGameTypes;
 
-public class Bat extends GameEntity {
+public class Bat extends Actor {
 
   private static final int CHANGE_DIRECTION_INTERVAL = 10;
 
@@ -25,7 +26,7 @@ public class Bat extends GameEntity {
     speed = defaultSpeed;
     maxLife = 15;
     currentLife = maxLife;
-    type = WorldGameTypes.MONSTER;
+    monster = true;
     attack = 10;
     defense = 0;
     exp = 6;
@@ -40,14 +41,14 @@ public class Bat extends GameEntity {
   }
 
   private void getImage() {
-    up1 = setup(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
-    up2 = setup(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
-    down1 = setup(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = setup(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = setup(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
-    left2 = setup(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
-    right1 = setup(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
-    right2 = setup(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
+    up1 = SpriteLoader.load(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
+    up2 = SpriteLoader.load(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
+    down1 = SpriteLoader.load(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = SpriteLoader.load(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = SpriteLoader.load(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
+    left2 = SpriteLoader.load(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
+    right1 = SpriteLoader.load(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
+    right2 = SpriteLoader.load(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

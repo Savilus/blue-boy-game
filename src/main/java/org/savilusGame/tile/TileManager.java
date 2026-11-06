@@ -63,17 +63,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 public class TileManager {
-  public static String CURRENT_MAP;
-
-  private static TileManager instance;
   private final GamePanel gamePanel;
   private final Tile[] tile;
   private final Map<String, int[][]> gameMaps = new HashMap<>();
   boolean drawPath = true;
 
-  private TileManager(GamePanel gamePanel) {
+  public TileManager(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
-    CURRENT_MAP = MAIN_MAP;
     tile = new Tile[50];
 
     getTileImage();
@@ -83,12 +79,6 @@ public class TileManager {
     loadMap(DUNGEON_SECOND_FLOR);
   }
 
-  public static TileManager getInstance(GamePanel gamePanel) {
-    if (Objects.isNull(instance)) {
-      instance = new TileManager(gamePanel);
-    }
-    return instance;
-  }
 
   public void loadMap(String mapPath) {
     if (gameMaps.containsKey(mapPath)) {
@@ -117,7 +107,7 @@ public class TileManager {
   public void draw(Graphics2D g2) {
     int worldCols = gamePanel.getMaxWorldCol();
     int worldRows = gamePanel.getMaxWorldRow();
-    int[][] map = gameMaps.get(CURRENT_MAP);
+    int[][] map = gameMaps.get(gamePanel.getWorld().getCurrentMap());
 
     int playerWorldX = gamePanel.getPlayer().getWorldX();
     int playerWorldY = gamePanel.getPlayer().getWorldY();

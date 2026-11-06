@@ -6,7 +6,8 @@ import static org.savilusGame.config.GameEntityNameFactory.ROCK_ATTACK;
 import java.awt.*;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 
 public class Rock extends Projectile {
@@ -24,14 +25,14 @@ public class Rock extends Projectile {
   }
 
   private void getImage() {
-    up1 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    up2 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    down1 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    down2 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    left1 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    left2 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    right1 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    right2 = setup(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    up1 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    up2 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    down1 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    down2 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    left1 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    left2 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    right1 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    right2 = SpriteLoader.load(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
   }
 
   @Override
@@ -55,12 +56,12 @@ public class Rock extends Projectile {
   }
 
   @Override
-  public void substractResource(GameEntity user) {
+  public void substractResource(Actor user) {
     user.setAmmo(user.getAmmo() - getUseCost());
   }
 
   @Override
-  public boolean haveResource(GameEntity user) {
+  public boolean haveResource(Actor user) {
     return user.getAmmo() >= getUseCost();
   }
 
