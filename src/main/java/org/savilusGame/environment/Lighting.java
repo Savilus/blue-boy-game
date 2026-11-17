@@ -14,7 +14,6 @@ import java.util.Objects;
 import org.savilusGame.GamePanel;
 import org.savilusGame.enums.Area;
 import org.savilusGame.enums.DayState;
-import org.savilusGame.utils.text.TextManager;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -26,12 +25,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Lighting {
 
-  static final int DAY_STATE_CHANGE_INTERVAL = 3000;
   static final String DAY_STATUS_KEY = "dayStatus";
   static final String DAY_KEY = "day";
   static final String DUSK_KEY = "dusk";
   static final String NIGHT_KEY = "night";
   static final String DAWN_KEY = "dawn";
+  static final int DAY_STATE_CHANGE_INTERVAL = 3000;
 
   static final Color[] GRADIENT_COLORS = {
       new Color(0, 0, 0.1f, 0.1F),
@@ -54,9 +53,9 @@ public class Lighting {
 
   final GamePanel gamePanel;
   BufferedImage darknessFilter;
+  DayState dayState = DAY;
   int dayCounter;
   float filterAlpha = 0f;
-  DayState dayState = DAY;
 
   public Lighting(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
@@ -96,17 +95,16 @@ public class Lighting {
 
     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1F));
 
-    String dayStateDebug = switch (dayState) {
-      case DAY -> TextManager.getUiText(DAY_STATUS_KEY, DAY_KEY);
-      case DUSK -> TextManager.getUiText(DAY_STATUS_KEY, DUSK_KEY);
-      case NIGHT -> TextManager.getUiText(DAY_STATUS_KEY, NIGHT_KEY);
-      case DAWN -> TextManager.getUiText(DAY_STATUS_KEY, DAWN_KEY);
-    };
-
     if (gamePanel.getCutsceneManager().getSceneNum() == gamePanel.getCutsceneManager().getEnding()) {
+      String key = switch (dayState) {
+        case DAY -> DAY_KEY;
+        case DUSK -> DUSK_KEY;
+        case NIGHT -> NIGHT_KEY;
+        case DAWN -> DAWN_KEY;
+      };
       g2.setColor(WHITE);
-      g2.setFont(g2.getFont().deriveFont(50F));
-      g2.drawString(dayStateDebug, 800, 500);
+      g2.setFont(gamePanel.getUi().getFonts().getDayStatus());
+      g2.drawString(gamePanel.getUiText(DAY_STATUS_KEY, key), 800, 500);
     }
   }
 

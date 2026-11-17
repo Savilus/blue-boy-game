@@ -8,16 +8,11 @@ import org.savilusGame.enums.Direction;
  * Structural contract for anything the tile/entity collision code can test.
  * <p>Implemented by characters, world (interactive) objects and dropped items;
  * decouples {@code CollisionDetector} from the concrete entity hierarchy.
- * The mutable solid area is intentionally exposed: collision resolution reuses
- * the rectangle instance and resets it to the defaults afterwards.
+ * The solid area is in local coordinates. Collision queries must treat it as read-only.
  */
 public interface CollisionBody {
 
   Rectangle getSolidArea();
-
-  int getSolidAreaDefaultX();
-
-  int getSolidAreaDefaultY();
 
   int getWorldX();
 

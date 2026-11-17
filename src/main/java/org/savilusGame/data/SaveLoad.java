@@ -390,7 +390,6 @@ public class SaveLoad {
     Area area = areaForMap(save.currentMap());
     gamePanel.setCurrentArea(area);
     gamePanel.setNextArea(area);
-    gamePanel.getGameMap().createWorldMap();
   }
 
   private static Area areaForMap(String map) {

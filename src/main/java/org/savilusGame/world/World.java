@@ -1,10 +1,12 @@
 package org.savilusGame.world;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.savilusGame.ai.NavigationGrid;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.InteractiveObject;
@@ -25,17 +27,18 @@ import org.savilusGame.tile.TileManager;
  */
 public class World {
 
+  private String currentMap;
   private final TileManager tileManager;
 
+  private final WorldNavigation navigation = new WorldNavigation();
   private final Map<String, List<InteractiveObject>> mapsObjects = new java.util.HashMap<>();
   private final Map<String, List<ItemDrop>> mapsItems = new java.util.HashMap<>();
   private final Map<String, List<Actor>> mapsNpc = new java.util.HashMap<>();
   private final Map<String, List<Actor>> mapsMonsters = new java.util.HashMap<>();
   private final Map<String, List<InteractiveTile>> mapsInteractiveTiles = new java.util.HashMap<>();
   private final Map<String, List<Actor>> projectiles = new java.util.HashMap<>();
-  private final List<Actor> particleList = new ArrayList<>();
 
-  private String currentMap;
+  private final List<Actor> particleList = new ArrayList<>();
   private boolean bossBattleOn;
   private boolean skeletonLordDefeated;
 
@@ -69,15 +72,6 @@ public class World {
     ensureMap(mapName);
   }
 
-  private void ensureMap(String mapName) {
-    mapsObjects.computeIfAbsent(mapName, key -> new ArrayList<>());
-    mapsItems.computeIfAbsent(mapName, key -> new ArrayList<>());
-    mapsNpc.computeIfAbsent(mapName, key -> new ArrayList<>());
-    mapsMonsters.computeIfAbsent(mapName, key -> new ArrayList<>());
-    mapsInteractiveTiles.computeIfAbsent(mapName, key -> new ArrayList<>());
-    projectiles.computeIfAbsent(mapName, key -> new ArrayList<>());
-  }
-
   // ------------------------------------------------------------------
   // Per-map raw access (save/load, asset seeding)
   // ------------------------------------------------------------------
@@ -98,7 +92,7 @@ public class World {
   }
 
   public Map<String, List<InteractiveTile>> mapsInteractiveTiles() {
-    return mapsInteractiveTiles;
+    return Collections.unmodifiableMap(mapsInteractiveTiles);
   }
 
   public Map<String, List<Actor>> projectiles() {
@@ -203,21 +197,25 @@ public class World {
   }
 
   public void setInteractiveTiles(Map<String, List<InteractiveTile>> maps) {
-    replaceMaps(mapsInteractiveTiles, maps);
+    maps.keySet().forEach(this::ensureMap);
+    mapsInteractiveTiles.replaceAll((map, previous) -> immutableTiles(maps.getOrDefault(map, List.of())));
+  }
+
+  /** Publish the replacement and its passability together; destroyed walls leave a null slot. */
+  public void replaceInteractiveTile(String map, int index, InteractiveTile replacement) {
+    var updated = new ArrayList<>(interactiveTiles(map));
+    updated.set(index, replacement);
+    mapsInteractiveTiles.put(map, Collections.unmodifiableList(updated));
+  }
+
+  public NavigationGrid navigationGrid() {
+    int[][] layout = tileManager.getGameMaps().get(currentMap);
+    if (layout == null) throw new IllegalStateException("No navigation terrain for map: " + currentMap);
+    return navigation.grid(layout, tileManager.getTile(), currentInteractiveTiles());
   }
 
   public void setProjectiles(Map<String, List<Actor>> maps) {
     replaceMaps(projectiles, maps);
-  }
-
-  private <T> void replaceMaps(Map<String, List<T>> target, Map<String, List<T>> maps) {
-    maps.keySet().forEach(this::ensureMap);
-    for (String mapName : List.copyOf(target.keySet())) {
-      List<T> entries = maps.containsKey(mapName)
-          ? Objects.requireNonNull(maps.get(mapName), "Null entity list for map: " + mapName)
-          : List.of();
-      target.put(mapName, new ArrayList<>(entries));
-    }
   }
 
   public void spawnMonster(String mapName, Actor monster) {
@@ -315,5 +313,29 @@ public class World {
 
   public void setSkeletonLordDefeated(boolean skeletonLordDefeated) {
     this.skeletonLordDefeated = skeletonLordDefeated;
+  }
+
+  private void ensureMap(String mapName) {
+    mapsObjects.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsItems.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsNpc.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsMonsters.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsInteractiveTiles.putIfAbsent(mapName, List.of());
+    projectiles.computeIfAbsent(mapName, key -> new ArrayList<>());
+  }
+
+  private static List<InteractiveTile> immutableTiles(List<InteractiveTile> tiles) {
+    // List.copyOf rejects the null slots used for destroyed walls.
+    return Collections.unmodifiableList(new ArrayList<>(tiles));
+  }
+
+  private <T> void replaceMaps(Map<String, List<T>> target, Map<String, List<T>> maps) {
+    maps.keySet().forEach(this::ensureMap);
+    for (String mapName : List.copyOf(target.keySet())) {
+      List<T> entries = maps.containsKey(mapName)
+          ? Objects.requireNonNull(maps.get(mapName), "Null entity list for map: " + mapName)
+          : List.of();
+      target.put(mapName, new ArrayList<>(entries));
+    }
   }
 }

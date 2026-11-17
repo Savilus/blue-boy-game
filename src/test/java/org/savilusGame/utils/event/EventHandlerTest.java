@@ -8,6 +8,8 @@ import static org.savilusGame.config.GameEntityNameFactory.MAIN_MAP;
 import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
 import static org.savilusGame.enums.GameState.TITLE_STATE;
 
+import java.awt.Rectangle;
+
 import org.junit.jupiter.api.Test;
 import org.savilusGame.GamePanel;
 
@@ -34,5 +36,18 @@ class EventHandlerTest {
     dungeonEvent.oneTimeEventDone = false;
     handler.checkEvent();
     assertEquals(CUTSCENE_STATE, panel.getGameState());
+  }
+
+  @Test
+  void missedEventsDoNotResetOrMoveLocalRectangles() {
+    var panel = new GamePanel();
+    var event = panel.getEventHandler().getEventRect().get(MAIN_MAP)[10][39];
+    event.setLocation(10, 14);
+    var player = panel.getPlayer();
+    player.setSolidArea(new Rectangle(1, 2, 12, 13));
+    panel.getEventHandler().checkEvent();
+    assertEquals(new Rectangle(1, 2, 12, 13), player.getSolidArea());
+    assertEquals(new Rectangle(10, 14, 2, 2), event);
+    assertEquals(TITLE_STATE, panel.getGameState());
   }
 }

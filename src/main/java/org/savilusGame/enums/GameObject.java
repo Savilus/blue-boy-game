@@ -14,15 +14,15 @@ import lombok.Getter;
 @Getter
 public enum GameObject {
   // GAME ITEMS
-  KEY("key"),
+  KEY("key", true),
   DOOR("door"),
   IRON_DOOR("ironDoor"),
   BOOTS("boots"),
   HEART("heart"),
   CHEST("chest"),
   LANTERN("lantern"),
-  TENT("tent"),
-  RED_POTION("redPotion"),
+  TENT("tent", true),
+  RED_POTION("redPotion", true),
   BRONZE_COIN("bronzeCoin"),
   MANA_CRYSTAL("manaCrystal"),
   BLUE_HEART("blueHeart"),
@@ -45,8 +45,14 @@ public enum GameObject {
   BIG_ROCK("bigRock");
 
   private final String textKey;
+  private final boolean stackable;
 
   GameObject(String textKey) {
+    this(textKey, false);
+  }
+
+  GameObject(String textKey, boolean stackable) {
     this.textKey = textKey;
+    this.stackable = stackable;
   }
 }

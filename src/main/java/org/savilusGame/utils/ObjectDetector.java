@@ -1,7 +1,7 @@
 package org.savilusGame.utils;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
+import static org.savilusGame.service.CollisionService.INIT_INDEX;
 
 import java.util.List;
 import java.util.Objects;
@@ -9,15 +9,14 @@ import java.util.Objects;
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.service.CollisionService;
 
 /** Front-facing tile detection for interactions (e.g. the key opening a door). */
 public final class ObjectDetector {
 
-  private ObjectDetector() {
-  }
-
   /**
-   * Index of the object standing in the tile in front of {@code user}, or {@link CollisionDetector#INIT_INDEX}.
+   * Index of the object standing in the tile in front of {@code user}, or
+   * {@link CollisionService#INIT_INDEX}.
    * Mirrors the legacy semantics: the probe point is the user's leading edge, offset by its speed.
    */
   public static int detect(CollisionBody user, List<InteractiveObject> objects, GameObject targetType) {
@@ -59,5 +58,8 @@ public final class ObjectDetector {
     }
 
     return index;
+  }
+
+  private ObjectDetector() {
   }
 }

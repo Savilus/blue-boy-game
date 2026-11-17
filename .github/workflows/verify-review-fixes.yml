@@ -1,0 +1,60 @@
+name: Build and gameplay checks
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - '*.gradle.kts'
+      - '.github/verification/**'
+      - '.github/workflows/verify-review-fixes.yml'
+permissions:
+  contents: read
+jobs:
+  gradle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build, test and measure line coverage
+        run: ./gradlew clean build jacocoTestReport
+      - name: Report results
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as xml
+          suites = [xml.parse(path).getroot() for path in Path('build/test-results/test').glob('TEST-*.xml')]
+          counts = {key: sum(int(suite.get(key, 0)) for suite in suites) for key in ('tests','failures','errors','skipped')}
+          counter = xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').find("counter[@type='LINE']")
+          print(f'::notice::JUnit: {counts}; JaCoCo lines: {counter.attrib}')
+          PY
+      - name: Exercise the live Swing window
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/classpath.gradle" <<'GRADLE'
+          allprojects { p -> p.plugins.withId('java') {
+            p.tasks.register('reviewClasspath') { doLast { println p.sourceSets.main.runtimeClasspath.asPath } }
+          } }
+          GRADLE
+          cp=$(./gradlew -q -I "$RUNNER_TEMP/classpath.gradle" reviewClasspath)
+          mkdir -p "$RUNNER_TEMP/dev"
+          sed 's/^  enabled: false/  enabled: true/' src/main/resources/config.yml > "$RUNNER_TEMP/dev/config.yml"
+          # Match the actual framebuffer to the logical playfield. On bare Xvfb there is no
+          # window manager to reconcile JFrame's requested and native window locations.
+          xvfb-run -a -s '-screen 0 960x576x24' java -Dsun.java2d.uiScale=1 -Dblueboy.dataDir="$RUNNER_TEMP/game-data" -cp "$RUNNER_TEMP/dev:$cp" .github/verification/DesktopCheck.java 2>&1 | tee "$RUNNER_TEMP/desktop.log"
+      - name: Report desktop failure
+        if: failure()
+        run: |
+          if test -f "$RUNNER_TEMP/desktop.log"; then
+            python3 -c 'import os,pathlib; print("::error::"+ (pathlib.Path(os.environ["RUNNER_TEMP"])/"desktop.log").read_text()[-1500:].replace("\n","%0A"))'
+          fi
+      - name: Retain the real frames for visual review
+        if: always() && hashFiles('build/desktop-check/*.png') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: chase-frames
+          path: build/desktop-check/*.png

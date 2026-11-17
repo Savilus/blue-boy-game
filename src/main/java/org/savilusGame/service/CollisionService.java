@@ -30,7 +30,7 @@ public interface CollisionService {
    *
    * @param entity the moving entity
    * @param target the candidate entities to test against (may be {@code null})
-   * @return index of the first colliding entity, or {@link #INIT_INDEX}
+   * @return index of the last colliding entity in list order, or {@link #INIT_INDEX}
    */
   int checkEntity(CollisionBody entity, List<? extends CollisionBody> target);
 
@@ -45,7 +45,7 @@ public interface CollisionService {
    * Overlap check against the dropped items of the current map. Items are never solid;
    * unlike {@link #checkObject(CollisionBody, boolean)} this never flags movement collision.
    *
-   * @return index of the first overlapping item, or {@link #INIT_INDEX}
+   * @return index of the last overlapping item in list order, or {@link #INIT_INDEX}
    */
   int checkItems(CollisionBody entity, List<ItemDrop> items);
 }

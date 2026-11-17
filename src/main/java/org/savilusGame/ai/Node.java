@@ -1,22 +1,13 @@
 package org.savilusGame.ai;
 
-import lombok.Getter;
+/** A tile coordinate, not a mutable A* work node. */
+public record Node(int column, int row) {
 
-@Getter
-public class Node {
+  boolean isAt(int column, int row) {
+    return this.column == column && this.row == row;
+  }
 
-  Node parent;
-  int col;
-  int row;
-  int gCost;
-  int hCost;
-  int fCost;
-  boolean solid;
-  boolean open;
-  boolean checked;
-
-  public Node(int col, int row) {
-    this.col = col;
-    this.row = row;
+  int distanceTo(Node other) {
+    return Math.abs(column - other.column) + Math.abs(row - other.row);
   }
 }

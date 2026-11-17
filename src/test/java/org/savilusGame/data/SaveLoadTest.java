@@ -44,26 +44,6 @@ class SaveLoadTest {
     saveLoad = new SaveLoad(panel, json, legacy);
   }
 
-  private static void seed(GamePanel gamePanel) {
-    gamePanel.getAssetSetter().setObject();
-    gamePanel.getAssetSetter().setInteractiveTiles();
-    gamePanel.getAssetSetter().setMonster();
-    gamePanel.getAssetSetter().setNPC();
-    gamePanel.getAssetSetter().setProjectile();
-    gamePanel.getAssetSetter().setInteractiveObjects();
-  }
-
-  /**
-   * Panel whose {@code setNextArea} fails, i.e. a failure in the very last step of applying a
-   * loaded save, after the world, map and player have already been replaced.
-   */
-  private static final class FailingGamePanel extends GamePanel {
-    @Override
-    public void setNextArea(Area nextArea) {
-      throw new IllegalStateException("simulated failure while applying the save");
-    }
-  }
-
   @Test
   void roundTripRestoresEveryMapAndWorldFlags() {
     var world = panel.getWorld();
@@ -74,7 +54,7 @@ class SaveLoadTest {
     Chest chest = (Chest) world.objects(DUNGEON_FIRST_FLOR).getFirst();
     chest.setOpened(true);
     String chestLoot = chest.getLoot().getId();
-    world.interactiveTiles(MAIN_MAP).set(0, null);
+    world.replaceInteractiveTile(MAIN_MAP, 0, null);
     world.setSkeletonLordDefeated(true);
     boolean[][] events = panel.getEventHandler().completedEvents(DUNGEON_SECOND_FLOR);
     events[25][27] = true;
@@ -105,6 +85,17 @@ class SaveLoadTest {
     assertTrue(world.monsters(DUNGEON_SECOND_FLOR).stream().noneMatch(SkeletonLord.class::isInstance));
     assertTrue(panel.getEventHandler().completedEvents(DUNGEON_SECOND_FLOR)[25][27]);
     assertFalse(panel.getEventHandler().completedEvents(MAIN_MAP)[25][27]);
+  }
+
+  /**
+   * Panel whose {@code setNextArea} fails, i.e. a failure in the very last step of applying a
+   * loaded save, after the world, map and player have already been replaced.
+   */
+  private static final class FailingGamePanel extends GamePanel {
+    @Override
+    public void setNextArea(Area nextArea) {
+      throw new IllegalStateException("simulated failure while applying the save");
+    }
   }
 
   @Test
@@ -262,5 +253,14 @@ class SaveLoadTest {
         System.setProperty(UserDataDirectory.OVERRIDE_PROPERTY, previous);
       }
     }
+  }
+
+  private static void seed(GamePanel gamePanel) {
+    gamePanel.getAssetSetter().setObject();
+    gamePanel.getAssetSetter().setInteractiveTiles();
+    gamePanel.getAssetSetter().setMonster();
+    gamePanel.getAssetSetter().setNPC();
+    gamePanel.getAssetSetter().setProjectile();
+    gamePanel.getAssetSetter().setInteractiveObjects();
   }
 }

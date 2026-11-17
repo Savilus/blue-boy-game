@@ -1,10 +1,9 @@
 package org.savilusGame.entity.projectile;
 
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
+import static org.savilusGame.service.CollisionService.INIT_INDEX;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.Direction;
 
 import lombok.Getter;
@@ -16,8 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class Projectile extends Actor {
 
-  private final int SPRITE_CHANGE_INTERVAL = 12;
   private Actor owner;
+  private final int SPRITE_CHANGE_INTERVAL = 12;
   private int useCost;
 
   protected Projectile(GamePanel gamePanel) {

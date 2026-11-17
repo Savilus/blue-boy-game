@@ -8,7 +8,6 @@ import static org.savilusGame.enums.WorldGameTypes.PICK_UP;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.utils.text.TextManager;
 
@@ -17,7 +16,7 @@ public class BlueHeart extends Item {
   public BlueHeart(GamePanel gamePanel) {
     super(gamePanel, GameObject.BLUE_HEART);
     type = PICK_UP;
-    icon = SpriteLoader.load(BLUE_HEART, TILE_SIZE, TILE_SIZE);
+    icon = sprites.get(BLUE_HEART, TILE_SIZE, TILE_SIZE);
     setDialogues(TextManager.getAllDialoguesForTarget(GameObject.BLUE_HEART.getTextKey()));
   }
 

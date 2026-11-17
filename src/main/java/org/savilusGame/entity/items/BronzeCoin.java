@@ -7,7 +7,6 @@ import static org.savilusGame.config.GameEntityNameFactory.COIN;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
 
@@ -19,7 +18,7 @@ public class BronzeCoin extends Item {
 
     type = WorldGameTypes.PICK_UP;
     value = 5;
-    icon = SpriteLoader.load(BRONZE_COIN, TILE_SIZE, TILE_SIZE);
+    icon = sprites.get(BRONZE_COIN, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

@@ -6,12 +6,9 @@ import static org.savilusGame.config.GameEntityNameFactory.DOOR_OPEN;
 import static org.savilusGame.config.GameEntityNameFactory.UNLOCK;
 
 import java.awt.*;
-import java.util.List;
-import java.util.Objects;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.GameObject;
@@ -26,10 +23,6 @@ public class BigRock extends Actor {
   /** The metal plate this rock is currently linked to, if any. */
   private InteractiveTile linkedEntity;
 
-  public InteractiveTile getLinkedEntity() {
-    return linkedEntity;
-  }
-
   public BigRock(GamePanel gamePanel) {
     super(gamePanel);
 
@@ -42,66 +35,12 @@ public class BigRock extends Actor {
     solidArea = new Rectangle();
     solidArea.x = 2;
     solidArea.y = 6;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
     solidArea.width = 44;
     solidArea.height = 40;
   }
 
-  private void detectPlate() {
-    var currentMap = gamePanel.getWorld().currentInteractiveTiles();
-
-    List<InteractiveTile> plateList = currentMap.stream()
-        .filter(Objects::nonNull)
-        .filter(tile -> tile.getGameObject() == GameObject.METAL_PLATE)
-        .toList();
-
-    List<BigRock> rockList = gamePanel.getWorld().currentNpc().stream()
-        .filter(BigRock.class::isInstance)
-        .map(BigRock.class::cast)
-        .toList();
-
-    for (InteractiveTile plate : plateList) {
-      int distance = Math.max(Math.abs(worldX - plate.getWorldX()), Math.abs(worldY - plate.getWorldY()));
-
-      if (distance < LINKED_OBJECTS_DISTANCE) {
-        if (Objects.isNull(linkedEntity)) {
-          linkedEntity = plate;
-          gamePanel.playSE(UNLOCK);
-        }
-      } else if (linkedEntity == plate) {
-        linkedEntity = null;
-      }
-    }
-
-    long linkedRocks = rockList.stream()
-        .filter(rock -> Objects.nonNull(rock.getLinkedEntity()))
-        .count();
-
-    if (linkedRocks == rockList.size()) {
-      var objects = gamePanel.getWorld().currentObjects();
-      for (int doorQuantity = 0; doorQuantity < objects.size(); doorQuantity++) {
-        var object = objects.get(doorQuantity);
-        if (Objects.nonNull(object) &&
-            object.getGameObject() == GameObject.IRON_DOOR) {
-
-          objects.remove(doorQuantity);
-          gamePanel.playSE(DOOR_OPEN);
-          break;
-        }
-      }
-    }
-  }
-
-  private void getImage() {
-    up1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+  public InteractiveTile getLinkedEntity() {
+    return linkedEntity;
   }
 
   @Override
@@ -135,6 +74,40 @@ public class BigRock extends Actor {
 
   @Override
   public void update() {
+  }
+
+  private void detectPlate() {
+    for (var plate : gamePanel.getWorld().currentInteractiveTiles()) {
+      if (plate == null || plate.getGameObject() != GameObject.METAL_PLATE) continue;
+      int distance = Math.max(Math.abs(worldX - plate.getWorldX()), Math.abs(worldY - plate.getWorldY()));
+
+      if (distance < LINKED_OBJECTS_DISTANCE) {
+        if (linkedEntity == null) {
+          linkedEntity = plate;
+          gamePanel.playSE(UNLOCK);
+        }
+      } else if (linkedEntity == plate) {
+        linkedEntity = null;
+      }
+    }
+
+    for (var npc : gamePanel.getWorld().currentNpc()) {
+      if (npc instanceof BigRock rock && rock.linkedEntity == null) return;
+    }
+    var objects = gamePanel.getWorld().currentObjects();
+    for (int index = 0; index < objects.size(); index++) {
+      var object = objects.get(index);
+      if (object != null && object.getGameObject() == GameObject.IRON_DOOR) {
+        objects.remove(index);
+        gamePanel.playSE(DOOR_OPEN);
+        return;
+      }
+    }
+  }
+
+  private void getImage() {
+    up1 = down1 = left1 = right1 = sprites.get(BIGROCK, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = up1;
   }
 
 }

@@ -47,26 +47,23 @@ import static org.savilusGame.config.GameEntityNameFactory.WATER9;
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.util.HashMap;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
-import java.util.Objects;
-
-import javax.imageio.ImageIO;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.utils.UtilityTool;
 
-import io.vavr.control.Try;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Getter
 public class TileManager {
+  private static final Color CHASE_PATH_COLOR = new Color(255, 0, 0, 70);
+
   private final GamePanel gamePanel;
   private final Tile[] tile;
-  private final Map<String, int[][]> gameMaps = new HashMap<>();
-  boolean pathVisible;
+  private final Map<String, int[][]> gameMaps = new ConcurrentHashMap<>();
+  private volatile boolean pathVisible;
 
   public TileManager(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
@@ -79,82 +76,70 @@ public class TileManager {
     loadMap(DUNGEON_SECOND_FLOR);
   }
 
-
+  /** Publish the entire layout at once. A dev reload also changes the identity used by the
+   * navigation and map-image caches; a failed reload never publishes a partial map. */
   public void loadMap(String mapPath) {
-    if (gameMaps.containsKey(mapPath)) {
-      return;
-    }
-    gameMaps.put(mapPath, new int[gamePanel.getMaxWorldCol()][gamePanel.getMaxWorldRow()]);
-
-    Try.withResources(() -> getClass().getResourceAsStream(mapPath))
-        .of(is -> {
-          try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
-            for (int row = 0; row < gamePanel.getMaxWorldRow(); row++) {
-              String line = br.readLine();
-              if (Objects.isNull(line)) break;
-
-              String[] numbers = line.trim().split("\\s+");
-              for (int col = 0; col < Math.min(numbers.length, gamePanel.getMaxWorldCol()); col++) {
-                gameMaps.get(mapPath)[col][row] = Integer.parseInt(numbers[col]);
-              }
-            }
+    int columns = gamePanel.getMaxWorldCol();
+    int rows = gamePanel.getMaxWorldRow();
+    int[][] layout = new int[columns][rows];
+    var stream = getClass().getResourceAsStream(mapPath);
+    if (stream == null) throw new IllegalArgumentException("Missing tile map: " + mapPath);
+    try (var reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+      for (int row = 0; row < rows; row++) {
+        String line = reader.readLine();
+        String[] numbers = line == null ? new String[0] : line.strip().split("\\s+");
+        if (numbers.length != columns) throw new IllegalStateException("Invalid row " + row + " in " + mapPath);
+        for (int column = 0; column < columns; column++) {
+          int number = Integer.parseInt(numbers[column]);
+          if (number < 0 || number >= tile.length || tile[number] == null) {
+            throw new IllegalStateException("Unknown tile " + number + " at " + column + "," + row + " in " + mapPath);
           }
-          return mapPath;
-        })
-        .onFailure(error -> log.error("Error while loading tile map '{}': {}", mapPath, error.getMessage()));
-  }
-
-  public void draw(Graphics2D g2) {
-    int worldCols = gamePanel.getMaxWorldCol();
-    int worldRows = gamePanel.getMaxWorldRow();
-    int[][] map = gameMaps.get(gamePanel.getWorld().getCurrentMap());
-
-    int playerWorldX = gamePanel.getPlayer().getWorldX();
-    int playerWorldY = gamePanel.getPlayer().getWorldY();
-    int playerScreenX = gamePanel.getPlayer().getScreenX();
-    int playerScreenY = gamePanel.getPlayer().getScreenY();
-
-    int visibleMinX = playerWorldX - playerScreenX - TILE_SIZE;
-    int visibleMaxX = playerWorldX + playerScreenX + TILE_SIZE;
-    int visibleMinY = playerWorldY - playerScreenY - TILE_SIZE;
-    int visibleMaxY = playerWorldY + playerScreenY + TILE_SIZE;
-
-    for (int row = 0; row < worldRows; row++) {
-      for (int col = 0; col < worldCols; col++) {
-        int tileNum = map[col][row];
-
-        int worldX = col * TILE_SIZE;
-        int worldY = row * TILE_SIZE;
-
-        if (worldX >= visibleMinX && worldX <= visibleMaxX &&
-            worldY >= visibleMinY && worldY <= visibleMaxY) {
-
-          int screenX = worldX - playerWorldX + playerScreenX;
-          int screenY = worldY - playerWorldY + playerScreenY;
-
-          if (Objects.nonNull(tile[tileNum])) {
-            g2.drawImage(tile[tileNum].image(), screenX, screenY, null);
-          }
+          layout[column][row] = number;
         }
       }
+    } catch (IOException | NumberFormatException error) {
+      throw new IllegalStateException("Cannot load tile map: " + mapPath, error);
     }
+    gameMaps.put(mapPath, layout);
+  }
 
-    if (pathVisible) {
-      Color originalColor = g2.getColor();
-      g2.setColor(new Color(255, 0, 0, 70));
-      for (var pathNode : gamePanel.getPathFinder().getPathList()) {
-        int worldX = pathNode.getCol() * TILE_SIZE;
-        int worldY = pathNode.getRow() * TILE_SIZE;
-        int screenX = worldX - playerWorldX + playerScreenX;
-        int screenY = worldY - playerWorldY + playerScreenY;
-        g2.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+  public void draw(Graphics2D graphics) {
+    int[][] map = gameMaps.get(gamePanel.getWorld().getCurrentMap());
+    int cameraX = gamePanel.cameraX();
+    int cameraY = gamePanel.cameraY();
+    int firstColumn = Math.max(0, Math.floorDiv(cameraX, TILE_SIZE));
+    int firstRow = Math.max(0, Math.floorDiv(cameraY, TILE_SIZE));
+    int endColumn = Math.min(map.length, Math.ceilDiv(cameraX + gamePanel.getScreenWidth(), TILE_SIZE));
+    int endRow = Math.min(map[0].length, Math.ceilDiv(cameraY + gamePanel.getScreenHeight(), TILE_SIZE));
+    for (int row = firstRow; row < endRow; row++) {
+      for (int column = firstColumn; column < endColumn; column++) {
+        graphics.drawImage(tile[map[column][row]].image(), column * TILE_SIZE - cameraX, row * TILE_SIZE - cameraY, null);
       }
-      g2.setColor(originalColor);
     }
+    if (pathVisible) drawChasePaths(graphics, cameraX, cameraY);
   }
 
   public void togglePathVisibility() {
     pathVisible = !pathVisible;
+  }
+
+  private void drawChasePaths(Graphics2D graphics, int cameraX, int cameraY) {
+    Color original = graphics.getColor();
+    graphics.setColor(CHASE_PATH_COLOR);
+    for (var monster : gamePanel.getWorld().currentMonsters()) {
+      if (monster == null) continue;
+      if (monster.isPursuingDirectly()) {
+        var player = gamePanel.getPlayer();
+        graphics.drawLine(monster.getScreenX() + (int) monster.getSolidArea().getCenterX(),
+            monster.getScreenY() + (int) monster.getSolidArea().getCenterY(),
+            player.getScreenX() + (int) player.getSolidArea().getCenterX(),
+            player.getScreenY() + (int) player.getSolidArea().getCenterY());
+      }
+      for (var cell : monster.remainingPath()) {
+        graphics.fillRect(cell.column() * TILE_SIZE - cameraX, cell.row() * TILE_SIZE - cameraY, TILE_SIZE, TILE_SIZE);
+      }
+    }
+    graphics.setColor(original);
   }
 
   private void getTileImage() {
@@ -199,12 +184,6 @@ public class TileManager {
   }
 
   private void setUp(int index, String imageName, boolean collision) {
-    if (index <= 9) {
-      return;
-    }
-    Try.run(() -> tile[index] = new Tile(
-        UtilityTool.scaleImage(ImageIO.read(Objects.requireNonNull(getClass().getResourceAsStream(imageName))),
-            TILE_SIZE, TILE_SIZE), collision
-    )).onFailure(error -> log.error("Error while setting up tile: {}", error.getMessage()));
+    tile[index] = new Tile(gamePanel.getSpriteCache().get(imageName, TILE_SIZE, TILE_SIZE), collision);
   }
 }

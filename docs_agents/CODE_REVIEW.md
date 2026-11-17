@@ -8,7 +8,7 @@ Each finding has:
   or `### 1. Title — 🟢 FIXED`. Red/green indicators supplement the text;
   severity is independent of status and appears below the title when assigned.
 - **Where** — file and line (historical review at `0511ef2`; selected findings
-  reassessed against `20277f2` and the current worktree as noted below).
+  reassessed against `20277f2` or `c260f71`, with the verified revision noted below).
 - **What / Why it matters** — the concrete failure mode or cost.
 - **Suggested fix** — the approach I would take, biased toward the fact that this project will keep growing.
 
@@ -19,87 +19,9 @@ to the bottom FIXED list and renumber OPEN and FIXED separately from 1.
 
 ## OPEN
 
-<a id="finding-20"></a>
-
-### 1. `TileManager.draw()` tests 2,500 tiles per frame instead of computing the visible window — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `tile/TileManager.java:135-185`
-
-```java
-for (int row = 0; row < worldRows; row++)
-  for (int col = 0; col < worldCols; col++) { int tileNum = map[col][row]; ... visibility check ... }
-```
-
-The viewport covers ~20×12 tiles; 96% of iterations are discarded by the `visibleMin/Max` test. Compute `startCol/endCol/startRow/endRow` from `playerWorld - playerScreen - TILE_SIZE` and iterate only that window. Same for the world-map pre-render (`GameMap.createWorldMap` renders the whole world each time it is called — fine occasionally, but it's called on every map switch (`UI.drawTransition`) in addition to once per construction; cache per map id).
-
-<a id="finding-21"></a>
-
-### 2. Per-frame allocation churn across the update/draw paths — 🔴 OPEN
-**Severity:** `P1`
-
-**Where / examples:**
-- `GamePanel.java:274` — `gameObjects.sort(Comparator.comparingInt(GameEntity::getWorldY))` and the list rebuild each frame (~300 `add` + boxing + lambda captures per frame).
-- `EventHandler.java:82` — `new HashMap<>()` + 4 lambdas **every `checkEvent()` call** (i.e., every frame while `canTouchEvent`).
-- `EventHandler.hit()` — allocates a `Rectangle` for the player area and reads from `eventRect` per call (5 events × 60 fps).
-- `GameEntity.checkCollision()` — `new ArrayList<>(Optional.ofNullable(...).orElse(emptyList()))` every call, then again per attack frame (`attacking()` → `checkEntity(... streams ... collect(toList()))` — a Stream + List allocation **every attack frame**).
-- `Player.update()` — the same `Optional.ofNullable(...).stream().map(t -> (GameEntity) t).collect(...)` pattern for interactive tiles.
-- `checkCollision()` / `update()` — the interactive-tiles list is *the same list* each call; the copy exists only to upcast `InteractiveTile`→`GameEntity`.
-- `Lighting.draw()` — `TextManager.getUiText(...)` map lookups and `deriveFont(50F)` every frame even though the end-credits branch is almost never taken; `String dayStateDebug` computed unconditionally.
-- `UI.*` — `graphics2D.setFont(graphics2D.getFont().deriveFont(...))` in ~30 places, per frame per draw call — each `deriveFont` allocates a new `Font`.
-- `new Random()` at 9 call sites (`GameEntity.java:350,642,653,664,673`, `Bat/GreenSlime/RedSlime:55/60/66`, `OldManNPC:79`) — new object + seeds from a shared entropy source per call; also means "random" is not seedable for deterministic tests.
-- `Comparator.comparingInt(GameEntity::getWorldY)` allocates a comparator each frame (cache a `static final Comparator`).
-
-**Why it matters:** at 60 fps with a busy scene (10 monsters × pathfinding + collisions + particles + projectiles), the young generation is filled with garbage objects that do nothing; GC pressure shows up as micro-stutters exactly when the action is dense. None of these are hard to fix; doing them as part of the render-loop work ([FIXED 19](#finding-19)) amortises the cost.
-
-**Fix:** hoist constants, reuse scratch `Rectangle`s (or better, remove the rect mutation entirely — see [OPEN 4](#finding-23)), replace copy+upcast streams with a pre-built `List<GameEntity>` view of interactive tiles (maintain it alongside `mapsInteractiveTiles`), cache fonts and comparators, switch to `ThreadLocalRandom` (or an injected `Random`).
-
-<a id="finding-22"></a>
-
-### 3. `PathFinder` is re-run *every frame* for every chasing monster, and is O(n²) — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `ai/PathFinder.java` (`setNodes`, `findBestNode`, `openList.remove(currentNode)`), callers `GameEntity.searchPath()`
-
-Three compounding issues:
-
-1. **Full 2,500-node rescan per search per monster per frame.** `setNodes()` recomputes `getCost()` for all 2,500 cells and re-marks destructible interactive tiles solid **every time a monster searches** — and `searchPath()` is called from monster AI each update tick while `onPath`. With 3 chasing monsters that's ~7,500 nodes of setup + A\* bookkeeping per frame, before any movement logic.
-2. **`openList` is an `ArrayList`** — `findBestNode()` is a linear scan and `remove(currentNode)` is O(n). A `PriorityQueue<Node>` ordered by `fCost` makes both O(log n). (For a 50×50 grid the constant factors hide it, but the moment you support larger worlds or more agents, this is the first wall you hit.)
-3. **One shared `PathFinder` instance** for all agents (`gamePanel.getPathFinder()`), holding mutable search state (`openList`, `currentNode`, `pathList`…). It is single-threaded today, but it forces every caller to serialise through one object and makes the class untestable and unsafe to re-enter. Also `search()` silently truncates at `MAX_PATH_LENGTH = 100` — the map is 50×50 (diagonal ≈ 99), so long searches *are* near the cap; hitting it returns "no path" with no signal.
-
-**Fix:**
-- Split out an immutable **search** (`PathFinder.search(grid, start, goal) : List<Node>`) from per-agent reuse; make it static/instance-per-call.
-- Maintain the solid-grid incrementally (mark tiles solid only when a destructible tile is placed/destroyed; a 2,500-cell boolean grid rebuild is trivial).
-- Only recompute the path when the goal cell changed since the last search, or every N ticks (e.g., 30) — classic stagger. Cache the path on the entity (`currentPath`, `pathIndex`).
-- Use a `PriorityQueue<Node>` (or binary heap) and a `Deque<Node>` for the reconstructed path (`pathList.addFirst` on an `ArrayList` is O(n) per add → O(n²) path rebuild; a proper `Deque`/linked list is O(n)).
-- Delete `MAX_PATH_LENGTH` or make it explicit and logged; failure to find a path should be distinguishable from "already at goal".
-- `PathFinder.getPathList()` returns `ArrayList<Node>` and callers use `getFirst()` — a Java 21 `SequencedCollection` call (see [OPEN 9](#finding-28)). Return an unmodifiable `List<Node>` or `Deque<Node>`.
-
-<a id="finding-23"></a>
-
-### 4. Collision detection mutates shared `Rectangle`s as scratch space — 🔴 OPEN
-**Severity:** `P2`
-
-**Where:** `CollisionDetector` (`checkObject`, `checkEntity`, `checkPlayer`, `checkGameEntityCollision`)
-
-Every check: (1) writes world coords into the *entity's* `solidArea.x/y`, (2) writes into the *target's* `solidArea.x/y`, (3) optionally `y -= speed` on the entity's rect, (4) intersects, (5) restores the defaults. If anything throws between (1) and (5) — an NPE from a missing tile (`tile[num]` null), an AIOOBE, a bug in a future `checkX` — the entity's `solidArea` is left in **world coordinates** and every subsequent collision is nonsense, with no log line explaining why. It also mutates the *attacker's* rect during knockback using the caller's direction — subtle, and it forces the ugly "use knockBackDirection instead" branch in four places.
-
-**Fix:** compute collision rectangles **locally** (`Rectangle entityRect = new Rectangle(x, y, w, h)` — a 4-field allocation is far cheaper than corruption, or reuse a per-call scratch rect), never write into `gameEntity.getSolidArea()`. The default-x/y restore dance disappears and `solidAreaDefaultX/Y` become unnecessary. This also makes the detector stateless and unit-testable.
-
-<a id="finding-24"></a>
-
-### 5. Resource loading has no cache: every entity construction re-reads and re-scales PNGs — 🔴 OPEN
-**Severity:** `P2`
-
-**Where:** `GameEntity.setup()` (ImageIO.read + `UtilityTool.scaleImage`), called from every constructor; `AssetSetter.setMonster()` on **every area change** and `resetGame()`; `UI` constructs `Heart`/`ManaCrystal`/`BronzeCoin` entities purely to steal `mainImage`; `Player.canObtainItem()` constructs a **new entity from disk** to read `stackable`; `SaveLoad.load()` constructs every inventory item and map object from disk
-
-Each `setup()` does `ImageIO.read` (file open + PNG decode) then allocates a scaled `BufferedImage`. The same `sun.png` is decoded dozens of times per session. Map transitions hitch visibly; opening the inventory panel stutters; loading a save re-decodes hundreds of images serially on the UI thread.
-
-**Fix:** a tiny **sprite cache** (Flyweight): `SpriteCache.get(path, width, height)` with a bounded map keyed by `path|width|height`. Combined with a static item-definition table (`ItemCatalog`: id → stackable/price/description key), `canObtainItem` and the UI HUD stop constructing entities entirely. This single change usually removes the largest per-frame and per-action disk traffic in Swing games.
-
 <a id="finding-25"></a>
 
-### 6. `drawToScreen()` uses `getGraphics()` instead of Swing's paint path — 🔴 OPEN
+### 1. `drawToScreen()` uses `getGraphics()` instead of Swing's paint path — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `GamePanel.java:207-212`
@@ -110,21 +32,23 @@ Calling `getGraphics()` per frame and then `dispose()` bypasses Swing's repaint 
 
 <a id="finding-26"></a>
 
-### 7. Sorting and drawing contain scattered magic numbers — 🔴 OPEN
+### 2. Sorting and drawing contain scattered magic numbers — 🔴 OPEN
 **Severity:** `P3`
 
 `GamePanel.ORIGINAL_TITLE_SIZE` (typo, "TITLE" not "TILE"), `TILE_SIZE * 5` fudge in `inCamera()`, `KNOCK_BACK_TIME`/`SPRITE_CHANGE_TIME` scattered, `20` duplicated as inventory cap, `3000` day-length, `0.001F` filter ramp… Give them names and one home (`Constants` or the owning class) — a future tuning pass over "game feel" currently means grepping literals.
 
 <a id="finding-27"></a>
 
-### 8. `Lighting` re-renders the darkness filter only when told, but draws text lookups every frame — 🔴 OPEN
+### 3. `Lighting` re-renders the darkness filter only when told, but draws text lookups every frame — 🔴 OPEN
 **Severity:** `P3`
 
 `setLightSource()` correctly only runs on `lightUpdated` — good. But `draw()` does two `TextManager` map lookups + a `deriveFont(50F)` per frame for a debug string almost never shown (end-credits only). Guard the whole block behind the ending-scene condition and hoist the font.
 
+**Reassessment (`c260f71` → `1a06fb4`):** the per-frame work was removed and tested under [FIXED 21](#finding-21). This separate ending-specific entry awaits visual confirmation in the final credits sequence; the desktop check exercised normal gameplay, not the credits.
+
 <a id="finding-28"></a>
 
-### 9. Lombok plugin version vs Gradle 8.5, and no Java toolchain pinned — 🔴 OPEN
+### 4. Lombok plugin version vs Gradle 8.5, and no Java toolchain pinned — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `build.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties`
@@ -132,11 +56,11 @@ Calling `getGraphics()` per frame and then `dispose()` bypasses Swing's repaint 
 - `io.freefair.lombok` **5.3.0** (Nov 2020, built for Gradle 6.x) paired with Gradle **8.5** is asking for trouble; you also redundantly declare `compileOnly`/`annotationProcessor` lombok yourself (good), so the plugin adds risk with little gain. **Drop `io.freefair.lombok`** or upgrade to ≥ 8.x.
 - **No `java { toolchain { languageVersion = ... } }`** anywhere. The code uses `List.getFirst()` (`GameEntity.searchPath`, `GameMap`? and `EventHandler.handleInteriorMapEvents` `getFirst()`) — a **Java 21** `SequencedCollection` API. With no toolchain, the build compiles against whatever JDK the CI/dev box happens to have; on JDK 17 it fails, on JDK 21 it silently relies on unspecified defaults (source/target 21 with `-source`/`-target` mismatch warnings). Pin `languageVersion = JavaLanguageVersion.of(21)` and set `options.encoding = "UTF-8"`.
 - `group = "org.example"`, `version = "1.0-SNAPSHOT"` — rename to the real coordinates (`org.savilusgame:blue-boy:<version>`) and start versioning properly; `save.dat`-style artifacts make releases untrackable.
-- `tasks.test { useJUnitPlatform() }` is configured but there are **zero tests** (see [OPEN 45](#finding-64)) — the line is aspirational today.
+- `tasks.test { useJUnitPlatform() }` is configured but there are **zero tests** (see [OPEN 40](#finding-64)) — the line is aspirational today.
 
 <a id="finding-29"></a>
 
-### 10. Outdated/vulnerable dependencies — 🔴 OPEN
+### 5. Outdated/vulnerable dependencies — 🔴 OPEN
 **Severity:** `P1`
 
 | Dependency | Updated version | Resolution |
@@ -167,21 +91,21 @@ Also: **no `logback.xml`** on the classpath — logback's default configuration 
 
 <a id="finding-30"></a>
 
-### 11. No packaging: `java -jar` is impossible — 🔴 OPEN
+### 6. No packaging: `java -jar` is impossible — 🔴 OPEN
 **Severity:** `P2`
 
 No `application`/`java` main-class manifest, no `Main-Class` in any jar task, no distribution (`installDist`, jpackage image, or even a fat jar). Given [FIXED 12](#finding-12), fixing resources is step one; packaging is step two. With Gradle, the `application` plugin + `installDist` + a `jpackage` step (or a simple launcher script) gets you a distributable in an afternoon.
 
 <a id="finding-31"></a>
 
-### 12. No static analysis / formatting enforcement — 🔴 OPEN
+### 7. No static analysis / formatting enforcement — 🔴 OPEN
 **Severity:** `P3`
 
 `src/main/resources/code-style-formatting.xml` is an IDE config **inside the resources tree** (it gets copied into the jar). Checkstyle/SpotBugs/Error Prone are not wired into the build, so nothing stops regression of the very issues in this report. Add `checkstyle` (or Spotless) with that config moved to `config/checkstyle/`, run it in CI, and start with "warning only" to avoid a big-bang failure.
 
 <a id="finding-32"></a>
 
-### 13. The game thread dies silently on any exception; the window stays up frozen — 🔴 OPEN
+### 8. The game thread dies silently on any exception; the window stays up frozen — 🔴 OPEN
 **Severity:** `P0`
 
 **Where:** `GamePanel.run()` — no `try/catch` around `update()`/`drawToTempScreen()`
@@ -192,7 +116,7 @@ Every P0/P1 bug above (missing map key → NPE, corrupt save, null tile…) prop
 
 <a id="finding-33"></a>
 
-### 14. Cross-thread visibility of game state (EDT vs game thread) — 🔴 OPEN
+### 9. Cross-thread visibility of game state (EDT vs game thread) — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `utils/KeyHandler.java` (plain `boolean upPressed, …, enterPressed`), `GamePanel.gameState` (plain field, set from EDT, read from game thread), `TileManager.CURRENT_MAP` (`public static String`, mutated from game thread and read from EDT — e.g. `KeyHandler` map-reload, `UI.drawTransition`), `GameMap`/`UI` shared fields
@@ -203,7 +127,7 @@ Swing delivers key events on the **EDT**; the game loop reads the same fields fr
 
 <a id="finding-34"></a>
 
-### 15. `Sound`: clips leak native lines; one shared instance cannot overlap SFX — 🔴 OPEN
+### 10. `Sound`: clips leak native lines; one shared instance cannot overlap SFX — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `Sound.java` (`setFile`, `play`, `loop`, `stop`), `GamePanel.soundEffect`
@@ -212,13 +136,13 @@ Swing delivers key events on the **EDT**; the game loop reads the same fields fr
 - `stop()` (`clip.stop()`) NPEs if nothing was ever played (`clip == null`); `music.stop()` is called in `changeArea()` before any music may have been set in some flows.
 - `checkVolume()` has no `default` in the `switch` — an out-of-range `volumeScale` leaves `floatControl.setValue(0f)` (0 dB = full scale) or, worse, an `IllegalArgumentException` if a corrupt config wrote a crazy value.
 - The `FloatControl` cast assumes every mixer supports `MASTER_GAIN` (most do; some don't — the `Try` in `setFile` wraps it, but the error message is opaque).
-- WAV assets are uncompressed PCM (41 MB for 4 tracks, 9–11 MB each) — fine for 15 s SFX, wrong for looped music (see [OPEN 36](#finding-55)).
+- WAV assets are uncompressed PCM (41 MB for 4 tracks, 9–11 MB each) — fine for 15 s SFX, wrong for looped music (see [OPEN 31](#finding-55)).
 
 **Fix:** cache one open `Clip` **per sound id** (`Map<SoundId, Clip>`), rewind with `setMicrosecondPosition(0)`, and `close()` music clips on switch. Use a small pool (or a dedicated `SoundEffect` player that opens-plays-closes per shot, since short clips decode fast). Null-guard `stop()`. Clamp `volumeScale` 0–5 at the setter. Convert WAV music to OGG/MP3 (`javax.sound` won't read OGG — either ship shorter/compressed WAV, use SPI (e.g., `vorbisspi`), or switch playback to `javax.sound` with MP3 via SPI — simplest: keep WAVs for SFX, transcode music to smaller sample rate/bitrate WAV or accept the SPI dependency).
 
 <a id="finding-35"></a>
 
-### 16. `draw()` mutates game state; render and update are not cleanly separated — 🔴 OPEN
+### 11. `draw()` mutates game state; render and update are not cleanly separated — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `GamePanel.drawToTempScreen` (fine), but also:
@@ -231,14 +155,14 @@ Swing delivers key events on the **EDT**; the game loop reads the same fields fr
 
 <a id="finding-36"></a>
 
-### 17. Knockback/invincibility timers and `invincibleCounter` duplicated with different constants — 🔴 OPEN
+### 12. Knockback/invincibility timers and `invincibleCounter` duplicated with different constants — 🔴 OPEN
 **Severity:** `P2`
 
 `GameEntity.INVINCIBLE_TIME = 40` vs `Player.INVINCIBLE_TIME = 60`; `GameEntity.KNOCK_BACK_TIME = 5` vs inline `5` in `Player`; `SPRITE_CHANGE_TIME` vs `CHANGE_SPRITE_INTERVAL`. Two parallel implementations of the same mechanics (see [FIXED 15](#finding-15)) — same class of drift will hit any future status effect. **Fix:** single implementation, single constants table (or per-entity overridable fields with one code path).
 
 <a id="finding-37"></a>
 
-### 18. `getDetected()` uses the *player's* speed for any user entity — 🔴 OPEN
+### 13. `getDetected()` uses the *player's* speed for any user entity — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `GameEntity.getDetected` — `int playerSpeed = getPlayer().speed;`
@@ -247,35 +171,35 @@ Used by `Key.use()` with `gameEntity == player` today, but any future non-player
 
 <a id="finding-38"></a>
 
-### 19. `INIT_INDEX = 999` sentinel — 🔴 OPEN
+### 14. `INIT_INDEX = 999` sentinel — 🔴 OPEN
 **Severity:** `P3`
 
 Magic-number "not found" across 22 call sites. Use `-1` (unambiguous) or `OptionalInt`; fail loudly elsewhere (`if (idx == -1)`). Sentinels invite "forgot to check" bugs — [FIXED 6](#finding-6) is exactly that.
 
 <a id="finding-39"></a>
 
-### 20. `Objects.requireNonNull(getClass().getResourceAsStream(...))` inside `Try`, then `.getOrElseThrow(...)` — 🔴 OPEN
+### 15. `Objects.requireNonNull(getClass().getResourceAsStream(...))` inside `Try`, then `.getOrElseThrow(...)` — 🔴 OPEN
 **Severity:** `P2`
 
 `Sound`/`setup()` convert a *missing resource* (a build/packaging error) into a runtime exception with a decent message — that part is fine — but the same pattern in `YamlConfigLoader` (`RuntimeException("Config file not found...")`) bypasses the `Try` entirely and gives an inconsistent error model. Pick one strategy (unchecked `IllegalStateException` with the resource id, always with a message) and apply it uniformly; swallow-and-log is only acceptable for *optional* assets.
 
 <a id="finding-40"></a>
 
-### 21. `Window setUndecorated(true)` for fullscreen after `setResizable(false)` etc. — 🔴 OPEN
+### 16. `Window setUndecorated(true)` for fullscreen after `setResizable(false)` etc. — 🔴 OPEN
 **Severity:** `P3`
 
 Ordering in `Main.java` is okay-ish, but the fullscreen path is untestable and undecorated-only; consider `GraphicsDevice.setFullScreenWindow` (exclusive mode) or simply maximized-bordered; at minimum document why undecorated is required. Also `Main.window` is a **public static mutable** — pass the frame explicitly or keep a package-private holder.
 
 <a id="finding-41"></a>
 
-### 22. No save versioning; no migration path — 🔴 OPEN
+### 17. No save versioning; no migration path — 🔴 OPEN
 **Severity:** `P1`
 
 First field of the new save DTO must be `schemaVersion`. Even if you only ever ship one version, writing it now costs nothing and it future-proofs save-format fixes such as [FIXED 7](#finding-7) and [FIXED 10](#finding-8).
 
 <a id="finding-42"></a>
 
-### 23. Save writes only on two implicit triggers — 🔴 OPEN
+### 18. Save writes only on two implicit triggers — 🔴 OPEN
 **Severity:** `P1`
 
 The game auto-saves at the healing pool (`EventHandler.healingPool()` → `setMonster()` + `save()`) and nowhere else (no save on quit/game-over retry). The title-screen "Load Game" entry point exists (`KeyHandler.titleState`) — with no save file, `load()` logs an error, then starts `PLAY_STATE` anyway (misleading UX: "Load Game" silently begins a fresh run instead of telling the player "no save found").
@@ -284,28 +208,28 @@ The game auto-saves at the healing pool (`EventHandler.healingPool()` → `setMo
 
 <a id="finding-43"></a>
 
-### 24. Interactive-tile save is index-based — 🔴 OPEN
+### 19. Interactive-tile save is index-based — 🔴 OPEN
 **Severity:** `P2`
 
 `SaveLoad` persists tile state as *parallel lists* aligned to the current `AssetSetter.setInteractiveTiles()` order. Reordering the list in code (trivial when adding a new destructible) corrupts every existing save silently — tiles resurrect or vanish with no error. **Fix:** persist by stable key: `mapId → list of {tileTypeId, col, row, currentLife, destroyed, invincible}` and rebuild by looking cells up, skipping unknown ids with a warning.
 
 <a id="finding-44"></a>
 
-### 25. Objects-on-map save is also index-based, and half-implemented — 🔴 OPEN
+### 20. Objects-on-map save is also index-based, and half-implemented — 🔴 OPEN
 **Severity:** `P2`
 
 `load()` clears the map list and re-adds only non-null entries; `NA`/`null` holes are simply dropped (the `objectsOnMap.add(null)` line is commented out). That's actually consistent today (lists are horizontal-compacted), but it still: (a) only covers the current map ([FIXED 7](#finding-7)), (b) assumes saved indexes match the freshly-`clear()`ed list, (c) loses chest *contents* for chests emptied this session (only `opened` is stored — fine, by design), and (d) doesn't store monster respawn state (acceptable design — respawning is a feature — but document it).
 
 <a id="finding-45"></a>
 
-### 26. `save.dat` and `gameConfig.txt` are committed to git — 🔴 OPEN
+### 21. `save.dat` and `gameConfig.txt` are committed to git — 🔴 OPEN
 **Severity:** `P3`
 
-See [OPEN 36](#finding-55).
+See [OPEN 31](#finding-55).
 
 <a id="finding-46"></a>
 
-### 27. `GamePanel` is a god object; `GameEntity` is a god base class — 🔴 OPEN
+### 22. `GamePanel` is a god object; `GameEntity` is a god base class — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `GamePanel.java` (entire), `entity/GameEntity.java` (759 lines, ~60 fields)
@@ -318,45 +242,45 @@ See [OPEN 36](#finding-55).
 1. Introduce a **`World`/`GameSession`** service object owned by `GamePanel` that owns the map-scoped entity lists, `CURRENT_MAP`, area, and boss flags — with methods (`entitiesOn(map)`, `spawnMonster(...)`, `dropLoot(...)`) instead of public mutable maps. `GamePanel` keeps the Swing/loop responsibilities only.
 2. Split `GameEntity` along the axis it already secretly has: an **`Item`** family (stackable, price, description — no physics, no AI) and an **`Actor`** family (health, stats, movement, collision). Interactive tiles implement `Destructible`/`Interactable` interfaces rather than inheriting 60 fields. Keep the single `GameEntity` base *temporarily* and migrate one family at a time; the goal is that `new RedPotion()` doesn't drag in `attackArea`, `exp`, `knockBackPower`.
 3. Constructor-inject **interfaces** (`AudioService`, `TextRepository`, `ItemCatalog`) rather than `GamePanel`. Even one interface (e.g., `EffectPlayer`) enables headless unit tests and breaks the worst coupling.
-4. `TileManager` singleton (`getInstance`) → constructor injection like everything else; delete `public static String CURRENT_MAP` (see [OPEN 28](#finding-47)).
+4. `TileManager` singleton (`getInstance`) → constructor injection like everything else; delete `public static String CURRENT_MAP` (see [OPEN 23](#finding-47)).
 
 Do not attempt a full ECS rewrite — it's unjustified at this scale. The point is: **make the seams**; the game stays the same, the tests and the team start to flow.
 
 <a id="finding-47"></a>
 
-### 28. Global mutable state: `TileManager.CURRENT_MAP` (public static), `Main.window` (public static), `Progress` (public static boolean) — 🔴 OPEN
+### 23. Global mutable state: `TileManager.CURRENT_MAP` (public static), `Main.window` (public static), `Progress` (public static boolean) — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `tile/TileManager.java:56`, `Main.java:14`, `data/Progress.java`
 
 `CURRENT_MAP` is read and written from `GamePanel`, `TileManager.draw`, `UI.drawTransition`, `CollisionDetector`, `EventHandler`, `PathFinder`, `GameEntity`, `AssetSetter`, `SaveLoad`, `KeyHandler` — a dozen classes reaching into one static cell. It prevents: multiple worlds, map previews, cutscene maps (PlayerDummy already teleports!), replay/testing, and safe TDD. These are all things this project *will* want.
 
-**Fix:** pass the current map id through the world object ([OPEN 27](#finding-46)); `CURRENT_MAP` becomes `world.currentMapId()`. Delete `public static`. `Main.window` → inject into `GamePanel` (fullscreen needs screen size, not the window). `Progress` → save DTO ([FIXED 9](#finding-10)).
+**Fix:** pass the current map id through the world object ([OPEN 22](#finding-46)); `CURRENT_MAP` becomes `world.currentMapId()`. Delete `public static`. `Main.window` → inject into `GamePanel` (fullscreen needs screen size, not the window). `Progress` → save DTO ([FIXED 9](#finding-10)).
 
 <a id="finding-48"></a>
 
-### 29. Collections of entities are open to every class, null-keyed by map id — 🔴 OPEN
+### 24. Collections of entities are open to every class, null-keyed by map id — 🔴 OPEN
 **Severity:** `P2`
 
 `mapsObjects`/`mapsMonsters`/`mapsNpc`/`projectiles`/`mapsInteractiveTiles` are public fields (via `@Getter`) typed `Map<String, List<GameEntity>>`, populated piecemeal by `AssetSetter` with **inconsistent key coverage** (no INTERIOR_MAP for objects/monsters, no SECOND_FLOR for NPCs…), then null-checked at every call site with subtly different patterns. This is the structural cause of [FIXED 6](#finding-6). **Fix:** one registry class (`WorldRegistry`) built from an explicit `List<String> mapIds`, always fully populated; absence is impossible by construction — not by discipline.
 
 <a id="finding-49"></a>
 
-### 30. The `UI` class is a 1,067-line renderer+controller for ~12 screens — 🔴 OPEN
+### 25. The `UI` class is a 1,067-line renderer+controller for ~12 screens — 🔴 OPEN
 **Severity:** `P2`
 
 Title, HUD, pause, character sheet, inventory (player & NPC), trade (buy/sell/select), options (settings/fullscreen/controls/end-game), dialogue, sleep transition, game-over, map, transition, debug — all in one class with a `Graphics2D graphics2D` field stashed on each `draw()`. Split into **screen classes** implementing e.g. `interface Screen { void draw(Graphics2D g, GamePanel p); }` with a `UiState`/`ScreenManager`; share `drawSubWindow`, fonts, and `getXForCenteredText` via a `UiKit`. This removes merge-conflict hell and makes each screen independently testable (at least construction-tested) — and it pairs naturally with replacing `GameState` switches scattered across `KeyHandler`/`UI`/`GamePanel` with a state-handler map (keep the enum; dispatch table instead of 10 switches).
 
 <a id="finding-50"></a>
 
-### 31. Assets are placed in Java code — 🔴 OPEN
+### 26. Assets are placed in Java code — 🔴 OPEN
 **Severity:** `P2`
 
-`AssetSetter` hard-codes ~80 entity placements (coordinates, loot chains) as `new X(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 23)` lines; `Lighting`, `EnvironmentManager`, day length… World design (spawn points, trigger volumes, puzzle wiring) buried in code means every level tweak is a recompile and review. For a game that will grow, move **entity placement and events into data** (JSON/YAML alongside the map files — e.g., `maps/worldV3.entities.json`: `{type, x, y, loot, …}`), keep a thin loader. This also fixes [OPEN 29](#finding-48) partially (placement defines the complete map set) and makes the a designer/mods workflow possible.
+`AssetSetter` hard-codes ~80 entity placements (coordinates, loot chains) as `new X(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 23)` lines; `Lighting`, `EnvironmentManager`, day length… World design (spawn points, trigger volumes, puzzle wiring) buried in code means every level tweak is a recompile and review. For a game that will grow, move **entity placement and events into data** (JSON/YAML alongside the map files — e.g., `maps/worldV3.entities.json`: `{type, x, y, loot, …}`), keep a thin loader. This also fixes [OPEN 24](#finding-48) partially (placement defines the complete map set) and makes the a designer/mods workflow possible.
 
 <a id="finding-51"></a>
 
-### 32. Duplicated A\* demo package ships with the game — 🔴 OPEN
+### 27. Duplicated A\* demo package ships with the game — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `src/main/java/aStarPathfindingAlgorithmExample/` (`Main`, `DemoPanel`, `KeyHandler`, `Node`)
@@ -365,7 +289,7 @@ A standalone A\* teaching demo, duplicating `org.savilusGame.ai.Node`, living in
 
 <a id="finding-52"></a>
 
-### 33. Package naming and structure — 🔴 OPEN
+### 28. Package naming and structure — 🔴 OPEN
 **Severity:** `P3`
 
 `org.savilusGame` — packages should be lowercase (`org.savilusgame`); the split `aStarPathfindingAlgorithmExample` (default demo) vs `org.savilusGame.ai` shows the ad-hoc growth. Suggested target layout (packages only, move incrementally):
@@ -382,10 +306,10 @@ org.savilusgame/
 
 <a id="finding-53"></a>
 
-### 34. Concrete design-pattern notes (where patterns help, where they don't) — 🔴 OPEN
+### 29. Concrete design-pattern notes (where patterns help, where they don't) — 🔴 OPEN
 **Severity:** `P3`
 
-- **Flyweight / cache**: sprites & fonts ([OPEN 5](#finding-24), [OPEN 2](#finding-21)).
+- **Flyweight / cache**: sprites & fonts ([FIXED 24](#finding-24), [FIXED 21](#finding-21)).
 - **Factory / registry**: `GameEntityFactory` is the right idea — make it data-driven (`Map<GameObject, Supplier<…>>` built once — it already is), keyed by stable id ([FIXED 8](#finding-9)), with duplicate-mapping validation at startup (it would have caught [FIXED 5](#finding-5)).
 - **State pattern**: `GameState` + switches in 4 places → dispatch table or State objects when a third switch appears; today a table suffices.
 - **Observer**: `EventHandler`/`checkEvent` is a poor-man's observer; a tiny `EventBus` (or direct calls) is fine at this scale — don't over-engineer.
@@ -394,145 +318,147 @@ org.savilusgame/
 
 <a id="finding-54"></a>
 
-### 35. `save.dat` and `src/main/gameConfig.txt` are committed to the repo — 🔴 OPEN
+### 30. `save.dat` and `src/main/gameConfig.txt` are committed to the repo — 🔴 OPEN
 
 At the reviewed revision, `git ls-files` confirmed both runtime/user artifacts were tracked. Remove them from tracking (`git rm --cached`) and add them to `.gitignore`. Their historical copies remain in Git history; acceptable for a save file, but note it.
 
 <a id="finding-55"></a>
 
-### 36. Large uncompressed audio and binary assets — 🔴 OPEN
+### 31. Large uncompressed audio and binary assets — 🔴 OPEN
 
 41 MB of uncompressed WAV music (9–11 MB × 4) and 250+ PNGs — the repo is ~84 MB. Use Git LFS for binary assets, or (better long-term) move assets out of git to an artifact host and fetch at build time (`gradle` task). At minimum convert music to OGG + a compact decoder SPI, or lower the sample rate/bit depth — 44.1 kHz stereo PCM is wasteful for this soundtrack.
 
 <a id="finding-56"></a>
 
-### 37. Screenshot directory name contains a space — 🔴 OPEN
+### 32. Screenshot directory name contains a space — 🔴 OPEN
 
 `game ss/` is referenced from README. Rename it to `` and update README links.
 
 <a id="finding-57"></a>
 
-### 38. `code-style-formatting.xml` lives in `src/main/resources` — 🔴 OPEN
+### 33. `code-style-formatting.xml` lives in `src/main/resources` — 🔴 OPEN
 
 Move the formatting configuration to `config/`.
 
 <a id="finding-58"></a>
 
-### 39. README is minimal — 🔴 OPEN
+### 34. README is minimal — 🔴 OPEN
 
 At the reviewed revision: no requirements (JDK 21), no build instructions, no controls list, no save location, no architecture overview, no contribution/license section. Recheck current coverage before adding missing documentation; document `./gradlew run` only after an application run task exists.
 
 <a id="finding-59"></a>
 
-### 40. No LICENSE file — 🔴 OPEN
+### 35. No LICENSE file — 🔴 OPEN
 
 Choose an appropriate license before public distribution or commercial release.
 
 <a id="finding-60"></a>
 
-### 41. No `.gitattributes` — 🔴 OPEN
+### 36. No `.gitattributes` — 🔴 OPEN
 
 Binary files (png/wav) have no merge strategy hints (`*.png binary`).
 
 <a id="finding-61"></a>
 
-### 42. Runtime artifacts are not ignored — 🔴 OPEN
+### 37. Runtime artifacts are not ignored — 🔴 OPEN
 
 `.gitignore` doesn't ignore `save.dat` / `gameConfig.txt` / crash dumps / logs.
 
 <a id="finding-62"></a>
 
-### 43. Lombok-generated code needs tooling metadata — 🔴 OPEN
+### 38. Lombok-generated code needs tooling metadata — 🔴 OPEN
 
 `lombok.config` at root with `config.stopBubbling=true` — fine; add `lombok.addLombokGeneratedAnnotation = true` so coverage/linters behave later.
 
 <a id="finding-63"></a>
 
-### 44. Review and CI merge requirements are not established — 🔴 OPEN
+### 39. Review and CI merge requirements are not established — 🔴 OPEN
 
-Single squashed-looking history ("Create README.md") — fine for now; adopt PR-based flow with CI green requirement once CI exists ([OPEN 45](#finding-64)).
+Single squashed-looking history ("Create README.md") — fine for now; adopt PR-based flow with CI green requirement once CI exists ([OPEN 41](#finding-65)).
 
 <a id="finding-64"></a>
 
-### 45. Tests — 🔴 OPEN
+### 40. Tests — 🔴 OPEN
 
-JUnit tests now exist under `src/test`; the full suite passed with 87 tests on 2026-11-17. This finding remains open because line coverage has not been measured against the project's ≥85% target and additional seams still need focused tests, including `PathFinder` and collision behavior. The specific regressions now covered are recorded with their corresponding fixed findings.
+At `1a06fb4`, `./gradlew clean build jacocoTestReport` ran 116 JUnit tests (0 failed, 0 skipped). JaCoCo reported 2348/4348 executable lines covered (54.0%) across production code, below the project’s 85% target. The new/rewritten `PathFinder`, `PathFollower`, `Node`, `WorldNavigation`, `CollisionDetector`, `SpriteCache`, `UiFonts` and `WorldRenderer` together measured 214/218 (98.2%); this narrower figure is not whole-project or all-changed-line coverage. See the [branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157) for the counts. Pathfinding and collision now have interface/behaviour tests; the whole-project coverage gap remains open.
 
 <a id="finding-65"></a>
 
-### 46. CI — 🔴 OPEN
+### 41. CI — 🔴 OPEN
 
 GitHub Actions: `./gradlew build test` on push/PR, matrix JDK 21, plus checkstyle/spotless gate (warning-only initially) and a `save format` compat test.
 
+**Partial verification infrastructure:** the wrapper build, JaCoCo report and separate Swing/Xvfb smoke test now run on JDK 25 for game-related pull requests or on demand. The broader static-analysis and compatibility gates in this finding were not implemented.
+
 <a id="finding-66"></a>
 
-### 47. Packaging/distribution — 🔴 OPEN
+### 42. Packaging/distribution — 🔴 OPEN
 
 `application` plugin or `jpackage` (win/lin/mac), icons, desktop entry; version injection into the title bar (`Main.GAME_TITLE` + version).
 
 <a id="finding-67"></a>
 
-### 48. Crash reporting / logging — 🔴 OPEN
+### 43. Crash reporting / logging — 🔴 OPEN
 
-`logback.xml`, rolling file log in `user.home/.blue-boy/logs`, and the crash dialog from [OPEN 13](#finding-32); without this, every player report is unreproducible.
+`logback.xml`, rolling file log in `user.home/.blue-boy/logs`, and the crash dialog from [OPEN 8](#finding-32); without this, every player report is unreproducible.
 
 <a id="finding-68"></a>
 
-### 49. Settings validation — 🔴 OPEN
+### 44. Settings validation — 🔴 OPEN
 
 `Config` line-based format has no schema; corrupt values silently half-apply. Use `java.util.Properties` or JSON; validate range (volume 0–5, fullscreen bool); keep human-editable only if you document it.
 
 <a id="finding-69"></a>
 
-### 50. Input remapping & controller? — 🔴 OPEN
+### 45. Input remapping & controller? — 🔴 OPEN
 
 optional, but the Key Bindings refactor ([FIXED 14](#finding-14)) is the enabling step; don't build remapping on a raw `KeyListener`.
 
 <a id="finding-70"></a>
 
-### 51. Save UX — 🔴 OPEN
+### 46. Save UX — 🔴 OPEN
 
-save slots or at least: explicit save on quit, "Load" disabled without a save, "saved" toast ([OPEN 23](#finding-42)).
+save slots or at least: explicit save on quit, "Load" disabled without a save, "saved" toast ([OPEN 18](#finding-42)).
 
 <a id="finding-71"></a>
 
-### 52. Localization framework — 🔴 OPEN
+### 47. Localization framework — 🔴 OPEN
 
 beyond keyed JSON you have today (the shape is right); formalize key namespacing (`ui.*`, `items.*`), validate at startup in all shipped languages, and keep ids out of display strings ([FIXED 8](#finding-9)).
 
 <a id="finding-72"></a>
 
-### 53. Accessibility/UX basics — 🔴 OPEN
+### 48. Accessibility/UX basics — 🔴 OPEN
 
 remappable keys, volume 0 = mute semantics (currently 0 → −80 dB — fine), text speed toggle for dialogue, colourblind-safe heart/mana palette (hearts vs crystals are red/cyan — mostly OK).
 
 <a id="finding-73"></a>
 
-### 54. Documentation — 🔴 OPEN
+### 49. Documentation — 🔴 OPEN
 
-Architecture README (the map in [OPEN 33](#finding-52)), build/run docs, asset pipeline note, save-format doc (even one page), CONTRIBUTING.
+Architecture README (the map in [OPEN 28](#finding-52)), build/run docs, asset pipeline note, save-format doc (even one page), CONTRIBUTING.
 
 <a id="finding-74"></a>
 
-### 55. License, issue templates, PR checklist — 🔴 OPEN
+### 50. License, issue templates, PR checklist — 🔴 OPEN
 
 cheap, immediate.
 
 <a id="finding-75"></a>
 
-### 56. Artifact cleanup — 🔴 OPEN
+### 51. Artifact cleanup — 🔴 OPEN
 
-delete/move the A\* demo ([OPEN 32](#finding-51)), prune unused maps/sprites ([OPEN 32](#finding-51)), document the tile-id ↔ image contract (`tile[]` index ≥ 10 — magic 10 at `TileManager.setUp`).
+delete/move the A\* demo ([OPEN 27](#finding-51)), prune unused maps/sprites ([OPEN 27](#finding-51)), document the tile-id ↔ image contract (`tile[]` index ≥ 10 — magic 10 at `TileManager.setUp`).
 
 <a id="finding-76"></a>
 
-### 57. Crash-safe shutdown — 🔴 OPEN
+### 52. Crash-safe shutdown — 🔴 OPEN
 
-window listener: flush config/save, close audio lines, stop the loop thread ([OPEN 13](#finding-32)).
+window listener: flush config/save, close audio lines, stop the loop thread ([OPEN 8](#finding-32)).
 
 <a id="finding-77"></a>
 
-### 58. (Optional, later) threading model doc — 🔴 OPEN
+### 53. (Optional, later) threading model doc — 🔴 OPEN
 
 even if you stay single-threaded, write down EDT vs game-thread ownership rules now; it prevents an entire class of races as more devs join.
 
@@ -662,7 +588,7 @@ Same class of bug, different sites: `GamePanel.java:262` (`for (GameEntity proje
 - `saved`: player stats, inventory, equipment, interactive tiles (correctly iterated across *all* maps — the object block is the odd one out), and only the current map's objects.
 - `not saved`: current map id, player world position (load resets to the default spawn — see `Player.setDefaultPositions()` called from `load()`), boss defeat, event one-time flags (`EventRect.oneTimeEventDone`), chest contents for unopened chests in other maps.
 
-**Fix:** serialize a `SaveGame` DTO that covers *all* maps (object name/x/y/opened/loot, interactive tile state — you already do this correctly), plus `currentMap`, player `worldX/worldY`, `skeletonLordDefeated`, and event one-time flags. Bump the format with a `schemaVersion` field so future migrations are possible (see [OPEN 22](#finding-41)).
+**Fix:** serialize a `SaveGame` DTO that covers *all* maps (object name/x/y/opened/loot, interactive tile state — you already do this correctly), plus `currentMap`, player `worldX/worldY`, `skeletonLordDefeated`, and event one-time flags. Bump the format with a `schemaVersion` field so future migrations are possible (see [OPEN 17](#finding-41)).
 
 **Resolution in the worktree based on `20277f2`:** the baseline already iterated object lists across maps, although other world state was still missing. Versioned saves include every map's objects, drops, interactive tiles and event flags, plus the active map, player position, inventory, equipment and boss defeat flag. Seeded and temporary drops are both saved so collected drops do not respawn; monster reseeding respects boss defeat. Temporary boss-battle doors are excluded because encounters restart on load. `SaveLoadTest` contains cross-map and temporary-door regression tests.
 
@@ -775,7 +701,7 @@ the loop, not once per level.
 Bundled texts are read via **filesystem paths relative to the CWD** (`src/main/resources/texts/...`) instead of the classpath. Consequences:
 
 1. Run the jar from any other directory → `TextLoader` finds nothing → `dialogues`/`items`/`settingsAndUI` are **empty maps** → `TextManager.getUiText(...)` returns `null` → `null.get(...)` on the next line throws NPE → dialogues/UI/item names all break (or the game dies at startup inside enum init — see [FIXED 13](#finding-13)).
-2. `gameConfig.txt` is *written into the source tree* (`src/main/gameConfig.txt` — a build artifact that was committed to git; see [OPEN 35](#finding-54)). Installed read-only, saving options fails silently.
+2. `gameConfig.txt` is *written into the source tree* (`src/main/gameConfig.txt` — a build artifact that was committed to git; see [OPEN 30](#finding-54)). Installed read-only, saving options fails silently.
 3. Packaging as a single jar / jpackage / native image is impossible; this is the main blocker for actually shipping Blue Boy.
 
 **Fix:**
@@ -793,7 +719,7 @@ per-user directory is overridable with `-Dblueboy.dataDir=...`, and `UserDataDir
 resolves it. Images, fonts, sounds, tile maps and `config.yml` already used the classpath and are unchanged.
 
 **Remaining:** actual packaging (jar/jpackage) and the still-committed `src/main/gameConfig.txt` artefact are separate
-findings ([OPEN 11](#finding-30), [OPEN 35](#finding-54), [OPEN 54](#finding-73)); class and working-directory
+findings ([OPEN 6](#finding-30), [OPEN 30](#finding-54), [OPEN 49](#finding-73)); class and working-directory
 independence is what this change delivers.
 
 **Change reference:** branch `arena/fc282c94-blue-boy-game` — `utils/text/TextLoader.java`, new
@@ -833,7 +759,7 @@ removed from the enum; the legacy-save fallback that still has to accept localiz
 
 **Where:** `utils/KeyHandler.java` — `VK_G` (god mode), `VK_T` (debug text), `VK_R` (reload map/cheat), `VK_X`, `System.exit(0)` in `titleState`, `gameConfig.txt` machinery
 
-None of this is gated behind a flag. For a game "developed into a big one", debug/cheat entry points should live behind a `devMode` property (`-Dblueboy.dev=true`) or a hidden settings toggle, not shipped unconditionally. Direct `System.exit` bypasses application cleanup unless it is registered as a JVM shutdown hook (music line cleanup, atomic save on exit — see [OPEN 57](#finding-76)).
+None of this is gated behind a flag. For a game "developed into a big one", debug/cheat entry points should live behind a `devMode` property (`-Dblueboy.dev=true`) or a hidden settings toggle, not shipped unconditionally. Direct `System.exit` bypasses application cleanup unless it is registered as a JVM shutdown hook (music line cleanup, atomic save on exit — see [OPEN 52](#finding-76)).
 
 **Fix:** central `DevMode` gate; route quit through `windowClosing`/a `GameController.quit()` that stops audio and (optionally) auto-saves; use Swing **Key Bindings** (`InputMap`/`ActionMap`) instead of a raw `KeyListener` so input works regardless of focus and is remappable — which also sets up future control rebinding (an obvious next feature for a game with WASD hard-coded in `KeyHandler`).
 
@@ -845,12 +771,14 @@ JVM; the window's close button is wired to the same method (`DO_NOTHING_ON_CLOSE
 skipped. `Sound.stop()` is null-safe, so quitting before any track played no longer throws. `VK_X` (minimap toggle) is
 kept as a normal feature.
 
-**Out of scope:** input remapping remains a separate future improvement tracked by [OPEN 54](#finding-73); it does not block this fix for release-mode cheats and quit cleanup.
+**Out of scope:** input remapping remains a separate future improvement tracked by [OPEN 45](#finding-69); it does not block this fix for release-mode cheats and quit cleanup.
 
 **Change reference:** branch `arena/fc282c94-blue-boy-game` — new `config/DevMode.java`, `utils/KeyHandler.java`,
 `GamePanel.java`, `Main.java`, `Sound.java`.
 
 **Verification:** `.\gradlew.bat test` — `BUILD SUCCESSFUL` (2026-11-17; 87 tests passed, 0 failed, 0 skipped). The user confirmed starting the game and manually checking all ten reviewed flows; they worked as expected.
+
+**Current configuration (`1a06fb4`):** the JVM property in the historical account above was superseded by `dev.enabled` in `config.yml`. The bundled value is now `false`, as required by `KeyHandlerTest.bundledConfigKeepsDevModeDisabled`; Ctrl is also gated. See [FIXED 22](#finding-22) for current verification.
 
 <a id="finding-15"></a>
 
@@ -906,7 +834,7 @@ directions, and a map without the boss yields no boss).
 ### 17. Small but real: `getImage()` loads `BOY_UP1` twice — 🟢 FIXED
 **Severity:** `P3`
 
-**Where:** `Player.java:getImage()` — `up1 = setup(BOY_UP1, ...)` appears twice; harmless, but signals the asset paths are maintained by hand (see [OPEN 31](#finding-50)). Also `MerchantNPC` assigns `up*` the down-frames (deliberate), and `GameEntity.setImage`-style duplication across `AssetSetter`/`Player`/`NPC` constructors is heavy copy-paste.
+**Where:** `Player.java:getImage()` — `up1 = setup(BOY_UP1, ...)` appears twice; harmless, but signals the asset paths are maintained by hand (see [OPEN 26](#finding-50)). Also `MerchantNPC` assigns `up*` the down-frames (deliberate), and `GameEntity.setImage`-style duplication across `AssetSetter`/`Player`/`NPC` constructors is heavy copy-paste.
 
 **Resolution in the current worktree (reassessed 2026-11-17):** the duplicate `up1` assignment
 is deleted, so `getImage()` loads each of the eight walking sprites exactly once. The removed line was behaviour
@@ -983,3 +911,103 @@ frame rate rejected). The loop body itself is not unit-testable without running 
 delegates to is covered.
 
 **Verification:** `.\gradlew.bat test` — `BUILD SUCCESSFUL` (2026-11-17; 87 tests passed, 0 failed, 0 skipped). The user confirmed starting the game and manually checking all ten reviewed flows; they worked as expected.
+
+<a id="finding-20"></a>
+
+### 20. `TileManager.draw()` tests 2,500 tiles per frame instead of computing the visible window — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `tile/TileManager.java:135-185`
+
+```java
+for (int row = 0; row < worldRows; row++)
+  for (int col = 0; col < worldCols; col++) { int tileNum = map[col][row]; ... visibility check ... }
+```
+
+The viewport covers ~20×12 tiles; 96% of iterations are discarded by the `visibleMin/Max` test. Compute `startCol/endCol/startRow/endRow` from `playerWorld - playerScreen - TILE_SIZE` and iterate only that window. Same for the world-map pre-render (`GameMap.createWorldMap` renders the whole world each time it is called — fine occasionally, but it's called on every map switch (`UI.drawTransition`) in addition to once per construction; cache per map id).
+
+**Resolution (reviewed at `c260f71`; changes `9ea4ce9`, `4a68e78`):** `TileManager.draw` now iterates the clamped, half-open camera window, including partially visible edge cells. `GameMap` renders its terrain image lazily and reuses it for both map views and across area switches/load. Dev reload publishes a complete replacement layout, invalidating only that map’s image. Interactive sprites and the player are not baked into the image.
+
+**Verification:** At `1a06fb4`, `./gradlew clean build jacocoTestReport` on Temurin 25: build successful; 116 tests passed, 0 failed or skipped ([branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157)). `TileRenderingTest` also makes an off-screen column unreadable, checks corner pixels and checks image identity on revisit and reload. In the live desktop check X enabled the minimap, M opened the full map and R published a new terrain layout. The full-map screenshot showed the island and player marker. Exact live check at `1a06fb4`: `xvfb-run -a java -Dblueboy.dataDir="$RUNNER_TEMP/game-data" -cp "$RUNNER_TEMP/dev:$cp" .github/verification/DesktopCheck.java` — exit 0. The driver used real Swing input and a temporary dev config, with audio muted. The captured frames were inspected, but no human playthrough or sound-device test was performed.
+
+<a id="finding-21"></a>
+
+### 21. Per-frame allocation churn across the update/draw paths — 🟢 FIXED
+**Severity:** `P1`
+
+**Where / examples:**
+- `GamePanel.java:274` — `gameObjects.sort(Comparator.comparingInt(GameEntity::getWorldY))` and the list rebuild each frame (~300 `add` + boxing + lambda captures per frame).
+- `EventHandler.java:82` — `new HashMap<>()` + 4 lambdas **every `checkEvent()` call** (i.e., every frame while `canTouchEvent`).
+- `EventHandler.hit()` — allocates a `Rectangle` for the player area and reads from `eventRect` per call (5 events × 60 fps).
+- `GameEntity.checkCollision()` — `new ArrayList<>(Optional.ofNullable(...).orElse(emptyList()))` every call, then again per attack frame (`attacking()` → `checkEntity(... streams ... collect(toList()))` — a Stream + List allocation **every attack frame**).
+- `Player.update()` — the same `Optional.ofNullable(...).stream().map(t -> (GameEntity) t).collect(...)` pattern for interactive tiles.
+- `checkCollision()` / `update()` — the interactive-tiles list is *the same list* each call; the copy exists only to upcast `InteractiveTile`→`GameEntity`.
+- `Lighting.draw()` — `TextManager.getUiText(...)` map lookups and `deriveFont(50F)` every frame even though the end-credits branch is almost never taken; `String dayStateDebug` computed unconditionally.
+- `UI.*` — `graphics2D.setFont(graphics2D.getFont().deriveFont(...))` in ~30 places, per frame per draw call — each `deriveFont` allocates a new `Font`.
+- `new Random()` at 9 call sites (`GameEntity.java:350,642,653,664,673`, `Bat/GreenSlime/RedSlime:55/60/66`, `OldManNPC:79`) — new object + seeds from a shared entropy source per call; also means "random" is not seedable for deterministic tests.
+- `Comparator.comparingInt(GameEntity::getWorldY)` allocates a comparator each frame (cache a `static final Comparator`).
+
+**Why it matters:** at 60 fps with a busy scene (10 monsters × pathfinding + collisions + particles + projectiles), the young generation is filled with garbage objects that do nothing; GC pressure shows up as micro-stutters exactly when the action is dense. None of these are hard to fix; doing them as part of the render-loop work ([FIXED 19](#finding-19)) amortises the cost.
+
+**Fix:** hoist constants, reuse scratch `Rectangle`s (or better, remove the rect mutation entirely — see [FIXED 23](#finding-23)), replace copy+upcast streams with a pre-built `List<GameEntity>` view of interactive tiles (maintain it alongside `mapsInteractiveTiles`), cache fonts and comparators, switch to `ThreadLocalRandom` (or an injected `Random`).
+
+**Resolution (reviewed at `c260f71`; changes `9ea4ce9`, `4a68e78`, `87ccd1c`):** `WorldRenderer` reuses one depth-sorted buffer and comparator, calling the `DepthDrawable` contract. Stable tie order and null-slot handling are preserved. Event dispatch is built once; hit tests use player-local coordinates. The collision API already accepted covariant lists at the baseline: the remaining Optional wrappers were removed, not replaced with a second tile registry. The UI caches font variants, menu/controls labels, fixed colours and strokes. `Lighting` only looks up the day label in the ending. AI and loot rolls reuse `ThreadLocalRandom`; `BigRock` tests the pressure plates in place instead of materialising plate and rock lists on every push (`1a06fb4`, `BigRockTest`). These are fixes for the reported allocations, not a claim that all frame rendering is allocation-free.
+
+**Verification:** At `1a06fb4`, `./gradlew clean build jacocoTestReport` on Temurin 25: build successful; 116 tests passed, 0 failed or skipped ([branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157)). `WorldRendererTest` checks tie order, removals and re-sorting across frames; `EventHandlerTest`, `LightingTest` and `UiFontsTest` cover event geometry, ending-only lookups and font reuse. The live playfield and inventory were exercised and the inventory frame visually reviewed. No before/after frame-time or GC benchmark was taken. Live command and environment: [FIXED 20](#finding-20).
+
+<a id="finding-22"></a>
+
+### 22. `PathFinder` is re-run *every frame* for every chasing monster, and is O(n²) — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `ai/PathFinder.java` (`setNodes`, `findBestNode`, `openList.remove(currentNode)`), callers `GameEntity.searchPath()`
+
+Three compounding issues:
+
+1. **Full 2,500-node rescan per search per monster per frame.** `setNodes()` recomputes `getCost()` for all 2,500 cells and re-marks destructible interactive tiles solid **every time a monster searches** — and `searchPath()` is called from monster AI each update tick while `onPath`. With 3 chasing monsters that's ~7,500 nodes of setup + A\* bookkeeping per frame, before any movement logic.
+2. **`openList` is an `ArrayList`** — `findBestNode()` is a linear scan and `remove(currentNode)` is O(n). A `PriorityQueue<Node>` ordered by `fCost` makes both O(log n). (For a 50×50 grid the constant factors hide it, but the moment you support larger worlds or more agents, this is the first wall you hit.)
+3. **One shared `PathFinder` instance** for all agents (`gamePanel.getPathFinder()`), holding mutable search state (`openList`, `currentNode`, `pathList`…). It is single-threaded today, but it forces every caller to serialise through one object and makes the class untestable and unsafe to re-enter. Also `search()` silently truncates at `MAX_PATH_LENGTH = 100` — the map is 50×50 (diagonal ≈ 99), so long searches *are* near the cap; hitting it returns "no path" with no signal.
+
+**Fix:**
+- Split out an immutable **search** (`PathFinder.search(grid, start, goal) : List<Node>`) from per-agent reuse; make it static/instance-per-call.
+- Maintain the solid-grid incrementally (mark tiles solid only when a destructible tile is placed/destroyed; a 2,500-cell boolean grid rebuild is trivial).
+- Only recompute the path when the goal cell changed since the last search, or every N ticks (e.g., 30) — classic stagger. Cache the path on the entity (`currentPath`, `pathIndex`).
+- Use a `PriorityQueue<Node>` (or binary heap) and a `Deque<Node>` for the reconstructed path (`pathList.addFirst` on an `ArrayList` is O(n) per add → O(n²) path rebuild; a proper `Deque`/linked list is O(n)).
+- Delete `MAX_PATH_LENGTH` or make it explicit and logged; failure to find a path should be distinguishable from "already at goal".
+- `PathFinder.getPathList()` returns `ArrayList<Node>` and callers use `getFirst()` — a Java 21 `SequencedCollection` call (see [OPEN 4](#finding-28)). Return an unmodifiable `List<Node>` or `Deque<Node>`.
+
+**Resolution (reviewed at `c260f71`; changes `9ea4ce9`, `4a68e78`, `87ccd1c`):** `PathfindingService.search(grid, start, goal)` now returns an independent immutable shortest four-way route. An empty route means arrived; an absent result means unreachable. `PathFinder` keeps its priority queue and best travelled distances local, reconstructs via a deque and has no arbitrary step limit. `WorldNavigation` shares terrain passability until reload/map change; a replacement interactive-tile list (including destruction, reseed, load or rollback) refreshes the obstacle snapshot. `PathFollower` advances that actor’s cursor and replans only on a changed goal, topology or off-route displacement; failed searches are cached too.
+
+**Dev overlay:** Ctrl draws the remaining path of **each** live chasing enemy on the current map, not the last search (and not an NPC route). Direct pursuit by the awake boss has a direction line instead of a fictitious tile path. Dropping the chase removes its trail. The bundled YAML now matches the existing release-mode test and README (off unless `dev.enabled: true`).
+
+**Verification:** At `1a06fb4`, `./gradlew clean build jacocoTestReport` on Temurin 25: build successful; 116 tests passed, 0 failed or skipped ([branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157)). `PathFinderTest`, `PathFollowerTest`, `WorldNavigationTest` and `ChaseOverlayTest` cover a 180-step corridor, detours, two independent cursors, invalidation, arrival and simultaneous overlays. The desktop check sent Ctrl to the real game window, verified both red branches at once and their removal, and checked that both slimes then advanced. The captured frames show two red approaches along the road when enabled and the untinted road when disabled. Live command and environment: [FIXED 20](#finding-20).
+
+<a id="finding-23"></a>
+
+### 23. Collision detection mutates shared `Rectangle`s as scratch space — 🟢 FIXED
+**Severity:** `P2`
+
+**Where:** `CollisionDetector` (`checkObject`, `checkEntity`, `checkPlayer`, `checkGameEntityCollision`)
+
+Every check: (1) writes world coords into the *entity's* `solidArea.x/y`, (2) writes into the *target's* `solidArea.x/y`, (3) optionally `y -= speed` on the entity's rect, (4) intersects, (5) restores the defaults. If anything throws between (1) and (5) — an NPE from a missing tile (`tile[num]` null), an AIOOBE, a bug in a future `checkX` — the entity's `solidArea` is left in **world coordinates** and every subsequent collision is nonsense, with no log line explaining why. It also mutates the *attacker's* rect during knockback using the caller's direction — subtle, and it forces the ugly "use knockBackDirection instead" branch in four places.
+
+**Fix:** compute collision rectangles **locally** (`Rectangle entityRect = new Rectangle(x, y, w, h)` — a 4-field allocation is far cheaper than corruption, or reuse a per-call scratch rect), never write into `gameEntity.getSolidArea()`. The default-x/y restore dance disappears and `solidAreaDefaultX/Y` become unnecessary. This also makes the detector stateless and unit-testable.
+
+**Resolution (reviewed at `c260f71`; changes `9ea4ce9`, `87ccd1c`):** `CollisionDetector` projects the movement origin (including knockback) and intersects the target in the mover’s local coordinate system. No collision query writes either rectangle. The default-coordinate fields and reset code, including event resets, are gone. Lists still select the last overlap, objects block only when solid, and pickups never block. A strike uses its own reusable bounds and restores the actor position and original hitbox in `finally`.
+
+**Verification:** At `1a06fb4`, `./gradlew clean build jacocoTestReport` on Temurin 25: build successful; 116 tests passed, 0 failed or skipped ([branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157)). `CollisionServiceTest`, `ActorBehaviorTest` and `EventHandlerTest` check offsets on hits/misses/exceptions, self and zero-area targets, knockback against the player, and overlapping drops/objects. The desktop scenario moved into a solid door, stopped at its boundary and collected the nonblocking potion. Live command and environment: [FIXED 20](#finding-20).
+
+<a id="finding-24"></a>
+
+### 24. Resource loading has no cache: every entity construction re-reads and re-scales PNGs — 🟢 FIXED
+**Severity:** `P2`
+
+**Where:** `GameEntity.setup()` (ImageIO.read + `UtilityTool.scaleImage`), called from every constructor; `AssetSetter.setMonster()` on **every area change** and `resetGame()`; `UI` constructs `Heart`/`ManaCrystal`/`BronzeCoin` entities purely to steal `mainImage`; `Player.canObtainItem()` constructs a **new entity from disk** to read `stackable`; `SaveLoad.load()` constructs every inventory item and map object from disk
+
+Each `setup()` does `ImageIO.read` (file open + PNG decode) then allocates a scaled `BufferedImage`. The same `sun.png` is decoded dozens of times per session. Map transitions hitch visibly; opening the inventory panel stutters; loading a save re-decodes hundreds of images serially on the UI thread.
+
+**Fix:** a tiny **sprite cache** (Flyweight): `SpriteCache.get(path, width, height)` with a bounded map keyed by `path|width|height`. Combined with a static item-definition table (`ItemCatalog`: id → stackable/price/description key), `canObtainItem` and the UI HUD stop constructing entities entirely. This single change usually removes the largest per-frame and per-action disk traffic in Swing games.
+
+**Resolution (reviewed at `c260f71`; changes `9ea4ce9`, `87ccd1c`):** `SpriteCache` is a synchronized, session-owned 256-entry LRU keyed by resource path and both scaled dimensions. Entities, tiles, equipment and HUD use the same read-only images; streams are closed, unsuccessful loads are not cached. The HUD already loaded its icons directly. Stackability is immutable item-kind metadata on `GameObject`; pickups transfer the existing item and a merge/refusal does not construct a probe. Only a successful purchase that needs a separate inventory slot creates a fresh item from merchant stock.
+
+**Verification:** At `1a06fb4`, `./gradlew clean build jacocoTestReport` on Temurin 25: build successful; 116 tests passed, 0 failed or skipped ([branch verification run](https://github.com/Savilus/blue-boy-game/actions/runs/44163334157)). `SpriteCacheTest` checks sharing, dimensions, LRU eviction and invalid assets; `PlayerInventoryCapacityTest` checks ownership, independent merchant stock, capacity and stacking. In the live game the collected potion appeared in the inventory beside the starting equipment. No claim about a measured reduction in transition time is made. Live command and environment: [FIXED 20](#finding-20).

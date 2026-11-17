@@ -4,7 +4,6 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.config.GameEntityNameFactory.TRUNK;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.utils.SpriteLoader;
 
 public class Trunk extends InteractiveTile {
 
@@ -14,13 +13,11 @@ public class Trunk extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    mainImage = SpriteLoader.load(TRUNK, TILE_SIZE, TILE_SIZE);
+    mainImage = sprites.get(TRUNK, TILE_SIZE, TILE_SIZE);
 
     solidArea.x = 0;
     solidArea.y = 0;
     solidArea.width = 0;
     solidArea.height = 0;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
   }
 }

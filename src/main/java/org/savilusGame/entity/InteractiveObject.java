@@ -1,6 +1,5 @@
 package org.savilusGame.entity;
 
-import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.enums.Direction.ANY;
 
 import java.awt.*;
@@ -9,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.savilusGame.GamePanel;
+import org.savilusGame.utils.SpriteCache;
+import org.savilusGame.service.DepthDrawable;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.GameObject;
@@ -34,39 +35,41 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PROTECTED)
-public abstract class InteractiveObject implements CollisionBody, DialogueSpeaker, Interactable, ParticleSpec {
-
-  private static final String EVENT_MESSAGES = "eventMessages";
-
-  final GamePanel gamePanel;
+public abstract class InteractiveObject implements DepthDrawable, CollisionBody, DialogueSpeaker, Interactable, ParticleSpec {
 
   String name;
+
+  final GamePanel gamePanel;
+  @Getter(AccessLevel.NONE)
+  final SpriteCache sprites;
+
   @Setter(AccessLevel.NONE)
   GameObject gameObject;
-  int worldX, worldY;
   Direction direction = ANY;
   Rectangle solidArea = new Rectangle(0, 0, 45, 45);
-  int solidAreaDefaultX, solidAreaDefaultY;
+  BufferedImage mainImage, mainImage2;
+  /** Loot handed out by chests; {@code null} for other objects. */
+  @Setter(AccessLevel.NONE)
+  Item loot;
+  int worldX, worldY;
   boolean collision = false;
   boolean invincible = false;
   int invincibleCounter = 0;
   protected int invincibleTime = 40;
   boolean opened = false;
-  private boolean temporaryObject = false;
   int currentLife = 1;
 
-  BufferedImage mainImage, mainImage2;
+  private static final String EVENT_MESSAGES = "eventMessages";
 
-  private Map<String, List<String>> dialogues;
   private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
-  private int dialogueIndex = 0;
+  private Map<String, List<String>> dialogues;
+  private boolean temporaryObject = false;
 
-  /** Loot handed out by chests; {@code null} for other objects. */
-  @Setter(AccessLevel.NONE)
-  Item loot;
+  private int dialogueIndex = 0;
 
   protected InteractiveObject(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
+    this.sprites = gamePanel.getSpriteCache();
     this.setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
 

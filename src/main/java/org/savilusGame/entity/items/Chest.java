@@ -9,7 +9,6 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.GameObject;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.utils.text.TextManager;
 
 import lombok.Getter;
@@ -25,16 +24,14 @@ public class Chest extends InteractiveObject {
     super(gamePanel);
     gameObject = GameObject.CHEST;
     name = TextManager.getItemName(GameObject.CHEST.getTextKey());
-    mainImage = SpriteLoader.load(CHEST, TILE_SIZE, TILE_SIZE);
-    mainImage2 = SpriteLoader.load(CHEST_OPENED, TILE_SIZE, TILE_SIZE);
+    mainImage = sprites.get(CHEST, TILE_SIZE, TILE_SIZE);
+    mainImage2 = sprites.get(CHEST_OPENED, TILE_SIZE, TILE_SIZE);
     collision = true;
 
     solidArea.x = 4;
     solidArea.y = 16;
     solidArea.width = 40;
     solidArea.height = 32;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
   }
 
   public Chest setLoot(Item loot) {

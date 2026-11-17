@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.savilusGame.GamePanel;
+import org.savilusGame.utils.SpriteCache;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
@@ -28,32 +29,36 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PROTECTED)
 public class Item implements DialogueSpeaker {
 
-  private static final String EVENT_MESSAGES = "eventMessages";
-
-  final GamePanel gamePanel;
-  private final String id;
   String name;
+
   String description;
+  final GamePanel gamePanel;
+  @Getter(AccessLevel.NONE)
+  final SpriteCache sprites;
+  WorldGameTypes type;
+  BufferedImage icon;
+  AttackProfile attackProfile;
   int value;
   int price;
   int stackCount = 1;
-  boolean stackable = false;
-  WorldGameTypes type;
-  BufferedImage icon;
   int attackValue;
   int defenseValue;
   int knockBackPower;
   int lightRadius;
-  AttackProfile attackProfile;
+  private static final String EVENT_MESSAGES = "eventMessages";
+  private final String id;
+  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
 
   // DIALOGUE STATE
   private Map<String, List<String>> dialogues;
-  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
+  private final boolean stackable;
   private int dialogueIndex = 0;
 
   protected Item(GamePanel gamePanel, GameObject gameObject) {
     this.gamePanel = gamePanel;
+    this.sprites = gamePanel.getSpriteCache();
     this.id = gameObject.name();
+    this.stackable = gameObject.isStackable();
     this.name = TextManager.getItemName(gameObject.getTextKey());
     this.setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }

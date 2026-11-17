@@ -12,7 +12,6 @@ import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
 import static org.savilusGame.enums.GameState.DIALOG_STATE;
 import static org.savilusGame.enums.GameState.TRANSITION_STATE;
 
-import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,9 +37,15 @@ public class EventHandler {
   static final String DAMAGE_PIT = "damagePit";
   static final String HEALING_POOL = "healingPool";
 
+  String tempMap;
   final GamePanel gamePanel;
   final Map<String, EventRect[][]> eventRect = new HashMap<>();
-  String tempMap;
+  @Getter(AccessLevel.NONE)
+  final Map<String, Runnable> mapHandlers = Map.of(
+      MAIN_MAP, this::handleMainMapEvents,
+      DUNGEON_FIRST_FLOR, this::handleDungeonFirstFloorEvents,
+      DUNGEON_SECOND_FLOR, this::handleDungeonSecondFloorEvents,
+      INTERIOR_MAP, this::handleInteriorMapEvents);
   int tempCol, tempRow;
 
   int previousEventX, previousEventY;
@@ -57,8 +62,6 @@ public class EventHandler {
           rect.y = 23;
           rect.width = 2;
           rect.height = 2;
-          rect.eventRectDefaultX = rect.x;
-          rect.eventRectDefaultY = rect.y;
 
           mapEvents[col][row] = rect;
         }
@@ -121,12 +124,6 @@ public class EventHandler {
   }
 
   private void handleMapEvents(String currentMap) {
-    Map<String, Runnable> mapHandlers = new HashMap<>();
-    mapHandlers.put(MAIN_MAP, this::handleMainMapEvents);
-    mapHandlers.put(DUNGEON_FIRST_FLOR, this::handleDungeonFirstFloorEvents);
-    mapHandlers.put(DUNGEON_SECOND_FLOR, this::handleDungeonSecondFloorEvents);
-    mapHandlers.put(INTERIOR_MAP, this::handleInteriorMapEvents);
-
     Runnable mapHandler = mapHandlers.get(currentMap);
     if (Objects.nonNull(mapHandler)) {
       mapHandler.run();
@@ -172,44 +169,20 @@ public class EventHandler {
 
   private boolean hit(int col, int row, Direction requiredDirection) {
     String currentMap = gamePanel.getWorld().getCurrentMap();
-    EventRect[][] mapEvents = Objects.requireNonNull(eventRect.get(currentMap),
-        "No event grid for current map: " + currentMap);
+    EventRect[][] mapEvents = eventRect.get(currentMap);
+    if (mapEvents == null) throw new IllegalStateException("No event grid for current map: " + currentMap);
     EventRect event = mapEvents[col][row];
-    var playerSolidArea = new Rectangle(
-        getPlayer().getWorldX() + getPlayer().getSolidArea().x,
-        getPlayer().getWorldY() + getPlayer().getSolidArea().y,
-        getPlayer().getSolidArea().width,
-        getPlayer().getSolidArea().height
-    );
-
-    var eventArea = new Rectangle(
-        col * TILE_SIZE + event.x,
-        row * TILE_SIZE + event.y,
-        event.width,
-        event.height
-    );
-
-    boolean hitResult = playerSolidArea.intersects(eventArea) && !event.oneTimeEventDone;
-
-    if (hitResult && (getPlayer().getDirection().equals(requiredDirection) || requiredDirection.equals(Direction.ANY))) {
-      previousEventX = getPlayer().getWorldX();
-      previousEventY = getPlayer().getWorldY();
-      return true;
+    var player = getPlayer();
+    if (event.oneTimeEventDone || (requiredDirection != Direction.ANY && player.getDirection() != requiredDirection)) {
+      return false;
     }
-
-    resetPlayerSolidArea();
-    resetEventArea(event);
-    return false;
-  }
-
-  private void resetPlayerSolidArea() {
-    getPlayer().getSolidArea().x = getPlayer().getSolidAreaDefaultX();
-    getPlayer().getSolidArea().y = getPlayer().getSolidAreaDefaultY();
-  }
-
-  private void resetEventArea(EventRect event) {
-    event.x = event.eventRectDefaultX;
-    event.y = event.eventRectDefaultY;
+    if (!player.getSolidArea().intersects(col * TILE_SIZE + event.x - player.getWorldX(),
+        row * TILE_SIZE + event.y - player.getWorldY(), event.width, event.height)) {
+      return false;
+    }
+    previousEventX = player.getWorldX();
+    previousEventY = player.getWorldY();
+    return true;
   }
 
   private void mapTeleport(String teleportToMap, int col, int row, Area area) {
@@ -250,7 +223,7 @@ public class EventHandler {
       gamePanel.getSaveLoad().save();
     }
   }
-  
+
   private Player getPlayer() {
     return gamePanel.getPlayer();
   }

@@ -61,6 +61,18 @@ public class CutsceneManager {
     }
   }
 
+  /**
+   * The boss is identified by its type, never by its localized display name, so renaming or
+   * translating the monster cannot silently break the cutscene (the same identity rule the door
+   * and the key follow).
+   */
+  Optional<SkeletonLord> skeletonLord() {
+    return gamePanel.getWorld().currentMonsters().stream()
+        .filter(SkeletonLord.class::isInstance)
+        .map(SkeletonLord.class::cast)
+        .findFirst();
+  }
+
   private void skeletonLordScene() {
     var mapNpcs = gamePanel.getWorld().currentNpc();
 
@@ -125,21 +137,9 @@ public class CutsceneManager {
     }
   }
 
-  /**
-   * The boss is identified by its type, never by its localized display name, so renaming or
-   * translating the monster cannot silently break the cutscene (the same identity rule the door
-   * and the key follow).
-   */
-  Optional<SkeletonLord> skeletonLord() {
-    return gamePanel.getWorld().currentMonsters().stream()
-        .filter(SkeletonLord.class::isInstance)
-        .map(SkeletonLord.class::cast)
-        .findFirst();
-  }
-
   private void endingScene() {
-    var blueHeart = new BlueHeart(gamePanel);
     if (scenePhase == 0) {
+      var blueHeart = new BlueHeart(gamePanel);
       gamePanel.stopBGM();
       blueHeart.startDialogue(blueHeart, CUTSCENE_DIALOGUE);
       scenePhase++;
@@ -170,7 +170,7 @@ public class CutsceneManager {
       drawBlackBackground(1F);
       drawString(
           alpha,
-          38F,
+          gamePanel.getUi().getFonts().getCredits(),
           200,
           TextManager.getAllDialoguesForTarget(CLOSING_CREDITS).get(CLOSING_CREDITS_FINAL_TEXT).getFirst(),
           70);
@@ -183,7 +183,7 @@ public class CutsceneManager {
     if (scenePhase == 6) {
       drawBlackBackground(1F);
       y = gamePanel.getScreenHeight() / 2;
-      drawString(1f, 120f, y / 2, GAME_TITLE, 40);
+      drawString(1f, gamePanel.getUi().getFonts().getCreditsTitle(), y / 2, GAME_TITLE, 40);
       if (counterReachedTargetTime(FIVE_SECONDS)) {
         scenePhase++;
       }
@@ -192,7 +192,7 @@ public class CutsceneManager {
       drawBlackBackground(1F);
       drawString(
           1F,
-          38F,
+          gamePanel.getUi().getFonts().getCredits(),
           gamePanel.getScreenHeight() / 2,
           TextManager.getAllDialoguesForTarget(CLOSING_CREDITS).get(END_CREDITS_TEXT).getFirst(),
           40);
@@ -206,7 +206,7 @@ public class CutsceneManager {
       y--;
       drawString(
           1F,
-          38F,
+          gamePanel.getUi().getFonts().getCredits(),
           y,
           TextManager.getAllDialoguesForTarget(CLOSING_CREDITS).get(END_CREDITS_TEXT).getFirst(),
           40);
@@ -228,10 +228,10 @@ public class CutsceneManager {
     graphics2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1F));
   }
 
-  private void drawString(float alpha, float fontSize, int y, String text, int lineHeight) {
+  private void drawString(float alpha, Font font, int y, String text, int lineHeight) {
     graphics2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
     graphics2D.setColor(Color.WHITE);
-    graphics2D.setFont(graphics2D.getFont().deriveFont(fontSize));
+    graphics2D.setFont(font);
 
     for (String line : text.split("\n")) {
       int x = gamePanel.getUi().getXForCenteredText(line);

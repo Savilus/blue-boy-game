@@ -4,6 +4,7 @@ import java.awt.*;
 
 import lombok.Setter;
 import org.savilusGame.GamePanel;
+import org.savilusGame.service.DepthDrawable;
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.utils.CameraUtil;
@@ -18,13 +19,11 @@ import lombok.experimental.FieldDefaults;
  */
 @Getter
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ItemDrop implements CollisionBody {
+public class ItemDrop implements DepthDrawable, CollisionBody {
 
   final GamePanel gamePanel;
   final Item item;
   final Rectangle solidArea = new Rectangle(0, 0, 45, 45);
-  final int solidAreaDefaultX;
-  final int solidAreaDefaultY;
   final Direction direction = Direction.ANY;
   int worldX;
   int worldY;
@@ -34,8 +33,6 @@ public class ItemDrop implements CollisionBody {
   public ItemDrop(GamePanel gamePanel, Item item) {
     this.gamePanel = gamePanel;
     this.item = item;
-    this.solidAreaDefaultX = this.solidArea.x;
-    this.solidAreaDefaultY = this.solidArea.y;
   }
 
     public ItemDrop setWorldPosition(int worldX, int worldY) {

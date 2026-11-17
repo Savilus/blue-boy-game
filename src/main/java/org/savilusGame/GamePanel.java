@@ -12,7 +12,6 @@ import static org.savilusGame.enums.GameState.TITLE_STATE;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -25,9 +24,7 @@ import org.savilusGame.config.Config;
 import org.savilusGame.config.DevMode;
 import org.savilusGame.data.SaveLoad;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.GameEntityFactory;
-import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.Player;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
@@ -49,6 +46,7 @@ import org.savilusGame.utils.text.TextManager;
 import org.savilusGame.utils.CollisionDetector;
 import org.savilusGame.utils.CutsceneManager;
 import org.savilusGame.utils.KeyHandler;
+import org.savilusGame.utils.SpriteCache;
 import org.savilusGame.utils.event.EventHandler;
 
 import lombok.AccessLevel;
@@ -61,59 +59,71 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class GamePanel extends JPanel implements Runnable, CollisionService, PathfindingService, AudioService, TextRepository, ItemCatalog, RenderContext {
+public class GamePanel extends JPanel implements Runnable, CollisionService, AudioService, TextRepository, ItemCatalog, RenderContext {
 
-  // SCREEN SETTINGS
-  final static int ORIGINAL_TITLE_SIZE = 16; // 16x16 tile
-  final static int SCALE = 3;
-  public final static int TILE_SIZE = ORIGINAL_TITLE_SIZE * SCALE; // 48 x 48 tile
-  final int maxScreenColumn = 20;
-  final int maxScreenRow = 12;
-  final int screenWidth = TILE_SIZE * maxScreenColumn; // 960 pixels
-  final int screenHeight = TILE_SIZE * maxScreenRow; // 576 pixels
+  /** Original 16-pixel artwork at 3x scale. */
+  public static final int TILE_SIZE = 16 * 3;
 
-  // WORLD SETTINGS
-  final int maxWorldCol = 50;
-  final int maxWorldRow = 50;
-  // FOR FULL SCREEN
-  int screenWidthFull = screenWidth;
-  int screenHeightFull = screenHeight;
-  BufferedImage tempScreen;
-  Graphics2D tempGraphic2d;
-  boolean fullScreenOn = false;
-
-  // SYSTEM
   static final int FPS = 60;
-  final TileManager tileManager = new TileManager(this);
-  final World world = new World(tileManager, MAIN_MAP);
-  final DevMode devMode = DevMode.fromConfig();
-  final KeyHandler keyHandler = new KeyHandler(this, devMode);
+  static final Font DEBUG_FONT = new Font("Arial", Font.PLAIN, 20);
+
+  final SpriteCache spriteCache = new SpriteCache();
+  final PathfindingService pathFinder = new PathFinder();
+  @Getter(AccessLevel.NONE)
+  final WorldRenderer worldRenderer = new WorldRenderer();
+  final TileManager tileManager;
+  final World world;
+  final DevMode devMode;
+  final KeyHandler keyHandler;
   Sound music = new Sound();
   Sound soundEffect = new Sound();
-  PathFinder pathFinder = new PathFinder(this);
-  CollisionDetector collisionDetector = new CollisionDetector(this);
-  AssetSetter assetSetter = new AssetSetter(this);
-  Thread gameThread;
-  SaveLoad saveLoad = new SaveLoad(this);
-  Config config = new Config(this);
-  UI ui = new UI(this);
-  EventHandler eventHandler = new EventHandler(this);
-  final EnvironmentManager environmentManager = new EnvironmentManager(this);
-  final GameMap gameMap = new GameMap(this);
-  final GameEntityFactory gameEntityFactory = new GameEntityFactory(this);
-  final CutsceneManager cutsceneManager = new CutsceneManager(this);
-
-  // ENTITY AND OBJECT
-  Player player = new Player(this, keyHandler);
-
-  // AREA
-  Area currentArea;
-  Area nextArea;
-
-  // GAME STATE
+  CollisionDetector collisionDetector;
+  AssetSetter assetSetter;
+  SaveLoad saveLoad;
+  Config config;
+  UI ui;
+  EventHandler eventHandler;
+  final EnvironmentManager environmentManager;
+  final GameMap gameMap;
+  final GameEntityFactory gameEntityFactory;
+  final CutsceneManager cutsceneManager;
+  Player player;
+  Area currentArea, nextArea;
   GameState gameState;
+  Thread gameThread;
+  BufferedImage tempScreen;
+  Graphics2D tempGraphic2d;
+
+  final int maxScreenColumn = 20;
+  final int maxScreenRow = 12;
+  final int screenWidth = TILE_SIZE * maxScreenColumn;
+  final int screenHeight = TILE_SIZE * maxScreenRow;
+  final int maxWorldCol = 50;
+  final int maxWorldRow = 50;
+  int screenWidthFull = screenWidth;
+  int screenHeightFull = screenHeight;
+  boolean fullScreenOn;
 
   public GamePanel() {
+    this(DevMode.fromConfig());
+  }
+
+  public GamePanel(DevMode devMode) {
+    this.devMode = Objects.requireNonNull(devMode);
+    tileManager = new TileManager(this);
+    world = new World(tileManager, MAIN_MAP);
+    keyHandler = new KeyHandler(this, devMode);
+    collisionDetector = new CollisionDetector(this);
+    assetSetter = new AssetSetter(this);
+    saveLoad = new SaveLoad(this);
+    config = new Config(this);
+    ui = new UI(this);
+    eventHandler = new EventHandler(this);
+    environmentManager = new EnvironmentManager(this);
+    gameMap = new GameMap(this);
+    gameEntityFactory = new GameEntityFactory(this);
+    cutsceneManager = new CutsceneManager(this);
+    player = new Player(this, keyHandler);
     this.setPreferredSize(new Dimension(screenWidth, screenHeight));
     this.setBackground(Color.BLACK);
     this.setDoubleBuffered(true);
@@ -225,15 +235,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     assetSetter.setMonster();
   }
 
-  private void setFullScreen() {
-    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-    double width = screenSize.getWidth();
-    double height = screenSize.getHeight();
-    Main.window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-    screenWidthFull = (int) width;
-    screenHeightFull = (int) height;
-  }
-
   // ------------------------------------------------------------------
   // Service interface delegations (Phase 0: no behavior change)
   // ------------------------------------------------------------------
@@ -260,21 +261,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
   @Override
   public int checkItems(org.savilusGame.entity.CollisionBody entity, List<org.savilusGame.entity.item.ItemDrop> items) {
     return collisionDetector.checkItems(entity, items);
-  }
-
-  @Override
-  public void setNodes(int startCol, int startRow, int goalCol, int goalRow) {
-    pathFinder.setNodes(startCol, startRow, goalCol, goalRow);
-  }
-
-  @Override
-  public boolean search() {
-    return pathFinder.search();
-  }
-
-  @Override
-  public java.util.List<org.savilusGame.ai.Node> getPathList() {
-    return pathFinder.getPathList();
   }
 
   @Override
@@ -332,12 +318,49 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     return player.getWorldY() - player.getScreenY();
   }
 
+  /**
+   * One update+render pass per frame slot. The loop waits out the rest of the slot instead of
+   * spinning, and a stall never produces a burst of catch-up frames ({@link FrameScheduler}).
+   */
+  @Override
+  public void run() {
+    FrameScheduler scheduler = new FrameScheduler(FPS);
+    long timer = System.nanoTime();
+    long drawCount = 0;
+
+    while (Objects.nonNull(gameThread)) {
+      update();
+      drawToTempScreen(); // draw everything to the buffered image
+      drawToScreen(); // draw the buffered image to the screen
+      drawCount++;
+
+      long now = System.nanoTime();
+      scheduler.advance(now);
+
+      if (now - timer >= 1_000_000_000L) {
+        log.debug("FPS: {}", drawCount);
+        drawCount = 0;
+        timer = now;
+      }
+
+      awaitNextFrame(scheduler);
+    }
+  }
+
+  private void setFullScreen() {
+    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+    double width = screenSize.getWidth();
+    double height = screenSize.getHeight();
+    Main.window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+    screenWidthFull = (int) width;
+    screenHeightFull = (int) height;
+  }
+
   private void drawToScreen() {
     var screenGraphics = getGraphics();
     screenGraphics.drawImage(tempScreen, 0, 0, screenWidthFull, screenHeightFull, null);
     screenGraphics.dispose();
   }
-
 
   private void drawToTempScreen() {
     if (gameState == TITLE_STATE) {
@@ -346,71 +369,7 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
       gameMap.drawFullMapScreen(tempGraphic2d);
     } else {
       tileManager.draw(tempGraphic2d);
-      var interactiveTiles = world.currentInteractiveTiles();
-      if (Objects.nonNull(interactiveTiles)) {
-        for (InteractiveTile interactiveTile : interactiveTiles) {
-          if (Objects.nonNull(interactiveTile)) {
-            interactiveTile.draw(tempGraphic2d);
-          }
-        }
-      }
-
-      // ONE y-sorted draw list: player + actors + world objects + item drops (identical z-order as before).
-      List<CollisionBody> drawables = new ArrayList<>();
-      drawables.add(player);
-      if (Objects.nonNull(world.currentNpc())) {
-        for (Actor npc : world.currentNpc()) {
-          if (Objects.nonNull(npc)) {
-            drawables.add(npc);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentObjects())) {
-        for (InteractiveObject object : world.currentObjects()) {
-          if (Objects.nonNull(object)) {
-            drawables.add(object);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentMonsters())) {
-        for (Actor monster : world.currentMonsters()) {
-          if (Objects.nonNull(monster)) {
-            drawables.add(monster);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentProjectiles())) {
-        for (Actor projectile : world.currentProjectiles()) {
-          if (Objects.nonNull(projectile)) {
-            drawables.add(projectile);
-          }
-        }
-      }
-      for (Actor particle : world.particleList()) {
-        if (Objects.nonNull(particle)) {
-          drawables.add(particle);
-        }
-      }
-      if (Objects.nonNull(world.currentItems())) {
-        for (var itemDrop : world.currentItems()) {
-          if (Objects.nonNull(itemDrop)) {
-            drawables.add(itemDrop);
-          }
-        }
-      }
-
-      drawables.sort(Comparator.comparingInt(CollisionBody::getWorldY));
-
-      for (CollisionBody drawable : drawables) {
-        if (drawable instanceof Actor actor) {
-          actor.draw(tempGraphic2d);
-        } else if (drawable instanceof InteractiveObject interactiveObject) {
-          interactiveObject.draw(tempGraphic2d);
-        } else if (drawable instanceof org.savilusGame.entity.item.ItemDrop itemDrop) {
-          itemDrop.draw(tempGraphic2d);
-        }
-      }
-
+      worldRenderer.draw(tempGraphic2d, world, player);
       environmentManager.draw(tempGraphic2d);
       gameMap.drawMiniMap(tempGraphic2d);
       cutsceneManager.draw(tempGraphic2d);
@@ -420,21 +379,21 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     //DEBUG
     if (keyHandler.isShowDebugText()) {
 
-      tempGraphic2d.setFont(new Font("Arial", Font.PLAIN, 20));
+      tempGraphic2d.setFont(DEBUG_FONT);
       tempGraphic2d.setColor(Color.WHITE);
       int x = 10;
       int y = 400;
       int lineHeight = 20;
 
-      tempGraphic2d.drawString("WorldX -> " + player.getWorldX(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "worldX") + player.getWorldX(), x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("WorldY ->" + player.getWorldY(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "worldY") + player.getWorldY(), x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("Col ->" + (player.getWorldX() + player.getSolidArea().x) / TILE_SIZE, x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "column") + (player.getWorldX() + player.getSolidArea().x) / TILE_SIZE, x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("Row -> " + (player.getWorldY() + player.getSolidArea().y) / TILE_SIZE, x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "row") + (player.getWorldY() + player.getSolidArea().y) / TILE_SIZE, x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("God Mode: -> " + keyHandler.isGodModeOn(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "godMode") + keyHandler.isGodModeOn(), x, y);
     }
   }
 
@@ -497,35 +456,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
       environmentManager.update();
     } else if (gameState == PAUSE_STATE) {
       // nothing
-    }
-  }
-
-  /**
-   * One update+render pass per frame slot. The loop waits out the rest of the slot instead of
-   * spinning, and a stall never produces a burst of catch-up frames ({@link FrameScheduler}).
-   */
-  @Override
-  public void run() {
-    FrameScheduler scheduler = new FrameScheduler(FPS);
-    long timer = System.nanoTime();
-    long drawCount = 0;
-
-    while (Objects.nonNull(gameThread)) {
-      update();
-      drawToTempScreen(); // draw everything to the buffered image
-      drawToScreen(); // draw the buffered image to the screen
-      drawCount++;
-
-      long now = System.nanoTime();
-      scheduler.advance(now);
-
-      if (now - timer >= 1_000_000_000L) {
-        log.debug("FPS: {}", drawCount);
-        drawCount = 0;
-        timer = now;
-      }
-
-      awaitNextFrame(scheduler);
     }
   }
 

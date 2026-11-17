@@ -7,7 +7,6 @@ import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.utils.text.TextManager;
@@ -18,54 +17,23 @@ import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 
-@Getter
-@Setter
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GameMap {
 
-  static int MINIMAP_DIAMETER = 200;
-  static String CLOSE_MAP_KEY = "closeMapText";
-  static String UI_MESSAGES = "uiMessages";
+  private static final String CLOSE_MAP_KEY = "closeMapText";
+  private static final String UI_MESSAGES = "uiMessages";
+  private static final int MINIMAP_DIAMETER = 200;
+  private static final BasicStroke MINIMAP_OUTLINE = new BasicStroke(3);
 
   GamePanel gamePanel;
   TileManager tileManager;
-  Map<String, BufferedImage> worldGameMap = new HashMap<>();
-  @NonFinal boolean miniMapOn = false;
+  Map<String, MapImage> mapImages = new HashMap<>();
+  @Getter @Setter @NonFinal boolean miniMapOn = false;
 
   public GameMap(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
     this.tileManager = gamePanel.getTileManager();
-    createWorldMap();
   }
-
-  public void createWorldMap() {
-    int cols = gamePanel.getMaxWorldCol();
-    int rows = gamePanel.getMaxWorldRow();
-
-    int width = TILE_SIZE * cols;
-    int height = TILE_SIZE * rows;
-
-    var worldMapImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-    var graphics2D = worldMapImage.createGraphics();
-
-    int[][] tileMap = tileManager.getGameMaps().get(gamePanel.getWorld().getCurrentMap());
-
-    for (int row = 0; row < rows; row++) {
-      for (int col = 0; col < cols; col++) {
-        int tileNum = tileMap[col][row];
-        var tile = tileManager.getTile()[tileNum];
-        if (Objects.nonNull(tile)) {
-          int x = TILE_SIZE * col;
-          int y = TILE_SIZE * row;
-          graphics2D.drawImage(tile.image(), x, y, null);
-        }
-      }
-    }
-
-    graphics2D.dispose();
-    worldGameMap.put(gamePanel.getWorld().getCurrentMap(), worldMapImage);
-  }
-
 
   public void drawFullMapScreen(Graphics2D g2) {
     int size = 500;
@@ -73,11 +41,10 @@ public class GameMap {
     int y = gamePanel.getScreenHeight() / 2 - size / 2;
     drawMap(g2, x, y, size, size, false, true, 1F);
 
-    g2.setFont(gamePanel.getUi().getMaruMonica().deriveFont(32F));
+    g2.setFont(gamePanel.getUi().getFonts().getLabel());
     g2.setColor(Color.WHITE);
     g2.drawString(TextManager.getUiText(UI_MESSAGES, CLOSE_MAP_KEY), 750, 550);
   }
-
 
   public void drawMiniMap(Graphics2D g2) {
     if (!miniMapOn) return;
@@ -86,6 +53,26 @@ public class GameMap {
     drawMap(g2, x, y, MINIMAP_DIAMETER, MINIMAP_DIAMETER, true, false, 0.8F);
   }
 
+  BufferedImage currentMapImage() {
+    String map = gamePanel.getWorld().getCurrentMap();
+    int[][] layout = tileManager.getGameMaps().get(map);
+    MapImage cached = mapImages.get(map);
+    if (cached != null && cached.layout() == layout) return cached.image();
+
+    var image = new BufferedImage(layout.length * TILE_SIZE, layout[0].length * TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+    var graphics = image.createGraphics();
+    try {
+      for (int column = 0; column < layout.length; column++) {
+        for (int row = 0; row < layout[column].length; row++) {
+          graphics.drawImage(tileManager.getTile()[layout[column][row]].image(), column * TILE_SIZE, row * TILE_SIZE, null);
+        }
+      }
+    } finally {
+      graphics.dispose();
+    }
+    mapImages.put(map, new MapImage(layout, image));
+    return image;
+  }
 
   private void drawMap(Graphics2D g2, int x, int y, int width, int height, boolean isCircle, boolean withBackground, float alpha) {
     if (withBackground) {
@@ -100,7 +87,7 @@ public class GameMap {
     }
 
     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-    g2.drawImage(worldGameMap.get(gamePanel.getWorld().getCurrentMap()), x, y, width, height, null);
+    g2.drawImage(currentMapImage(), x, y, width, height, null);
 
     double scale = (double) (TILE_SIZE * gamePanel.getMaxWorldCol()) / width;
     int playerX = (int) (x + gamePanel.getPlayer().getWorldX() / scale);
@@ -113,8 +100,10 @@ public class GameMap {
 
     if (isCircle) {
       g2.setColor(Color.WHITE);
-      g2.setStroke(new BasicStroke(3));
+      g2.setStroke(MINIMAP_OUTLINE);
       g2.draw(new Ellipse2D.Float(x, y, width, height));
     }
   }
+
+  private record MapImage(int[][] layout, BufferedImage image) {}
 }

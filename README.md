@@ -13,6 +13,14 @@ Build and run the tests using the Gradle wrapper:
 ./gradlew build
 ```
 
+To run the full headless JUnit suite and measure line coverage on the same classpath:
+
+```sh
+./gradlew clean build jacocoTestReport
+```
+
+The HTML report is in `build/reports/jacoco/test/html/index.html`.
+
 ### Saved games and settings
 
 The game stores mutable state in a per-user data directory, `~/.blue-boy/`
@@ -43,7 +51,16 @@ boss encounter restarts.
 
 Cheat/debug input (god mode, debug overlay, map reload, and path visualization)
 is disabled by default. Set `dev.enabled: true` in
-`src/main/resources/config.yml` to enable it. The game reads all
+`src/main/resources/config.yml` to enable it. During play, **Ctrl** toggles
+translucent red trails for **all** enemies currently tracking the player on
+this map. Each trail shows that enemy’s remaining waypoints; a boss steering
+directly shows its heading to the player instead. Wandering enemies, dead
+enemies and NPCs have no trail. **R** reloads the terrain; the minimap,
+full map and pursuit routes use the new layout.
+Press **+** while playing to grant the player one level. New games start with
+every inventory item; stackable items have 50 units each.
+
+The game reads all
 bundled texts, images, fonts, sounds and tile maps from the classpath, so it
 runs from any working directory; `src/main/resources/texts/index.json` lists
 the bundled text files and must list every file in that folder.

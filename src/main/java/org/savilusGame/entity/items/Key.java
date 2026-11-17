@@ -4,13 +4,12 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.config.GameEntityNameFactory.KEY;
 import static org.savilusGame.config.GameEntityNameFactory.UNLOCK;
 import static org.savilusGame.enums.WorldGameTypes.CONSUMABLE;
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
+import static org.savilusGame.service.CollisionService.INIT_INDEX;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.utils.ObjectDetector;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.utils.text.TextManager;
 
@@ -25,8 +24,7 @@ public class Key extends Item {
   public Key(GamePanel gamePanel) {
     super(gamePanel, GameObject.KEY);
     type = CONSUMABLE;
-    stackable = true;
-    icon = SpriteLoader.load(KEY, TILE_SIZE, TILE_SIZE);
+    icon = sprites.get(KEY, TILE_SIZE, TILE_SIZE);
     description = String.format(TextManager.getItemDescription(GameObject.KEY.getTextKey()), name);
     setDialogues(TextManager.getItemTexts(GameObject.KEY.getTextKey(), name));
     price = 1;

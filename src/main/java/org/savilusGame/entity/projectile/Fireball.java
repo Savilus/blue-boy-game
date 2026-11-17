@@ -14,7 +14,6 @@ import java.awt.*;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.utils.text.TextManager;
 
@@ -31,17 +30,6 @@ public class Fireball extends Projectile {
     knockBackPower = 5;
     setUseCost(1);
     getImage();
-  }
-
-  private void getImage() {
-    up1 = SpriteLoader.load(FIREBALL_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(FIREBALL_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(FIREBALL_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(FIREBALL_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(FIREBALL_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(FIREBALL_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(FIREBALL_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(FIREBALL_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override
@@ -72,5 +60,16 @@ public class Fireball extends Projectile {
   @Override
   public boolean haveResource(Actor user) {
     return user.getMana() >= getUseCost();
+  }
+
+  private void getImage() {
+    up1 = sprites.get(FIREBALL_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = sprites.get(FIREBALL_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = sprites.get(FIREBALL_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = sprites.get(FIREBALL_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = sprites.get(FIREBALL_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = sprites.get(FIREBALL_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = sprites.get(FIREBALL_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = sprites.get(FIREBALL_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 }
