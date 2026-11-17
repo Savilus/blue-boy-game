@@ -1,9 +1,7 @@
 package org.savilusGame.entity.items;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.config.GameEntityNameFactory.HEART_BLANK;
 import static org.savilusGame.config.GameEntityNameFactory.HEART_FULL;
-import static org.savilusGame.config.GameEntityNameFactory.HEART_HALF;
 import static org.savilusGame.config.GameEntityNameFactory.POWER_UP;
 
 import org.savilusGame.GamePanel;

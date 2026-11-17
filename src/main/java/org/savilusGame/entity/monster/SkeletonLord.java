@@ -41,7 +41,6 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.items.IronDoor;
 import org.savilusGame.enums.Direction;
-import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
 
 import lombok.AccessLevel;
@@ -87,48 +86,6 @@ public class SkeletonLord extends Actor {
     getImage();
     getAttackImage();
     setDialogues(TextManager.getAllDialoguesForTarget(SKELETON_LORD.getDialogueKey()));
-  }
-
-  private void getImage() {
-    if (!inRage) {
-      loadImages(SKELETON_LORD_UP1, SKELETON_LORD_UP2, SKELETON_LORD_DOWN1, SKELETON_LORD_DOWN2,
-          SKELETON_LORD_LEFT1, SKELETON_LORD_LEFT2, SKELETON_LORD_RIGHT1, SKELETON_LORD_RIGHT2);
-    } else {
-      loadImages(SKELETON_LORD_PHASE2_UP1, SKELETON_LORD_PHASE2_UP2, SKELETON_LORD_PHASE2_DOWN1, SKELETON_LORD_PHASE2_DOWN2,
-          SKELETON_LORD_PHASE2_LEFT1, SKELETON_LORD_PHASE2_LEFT2, SKELETON_LORD_PHASE2_RIGHT1, SKELETON_LORD_PHASE2_RIGHT2);
-    }
-  }
-
-  private void getAttackImage() {
-    if (!inRage) {
-      loadAttackImages(SKELETON_LORD_ATTACK_UP1, SKELETON_LORD_ATTACK_UP2, SKELETON_LORD_ATTACK_DOWN1, SKELETON_LORD_ATTACK_DOWN2,
-          SKELETON_LORD_ATTACK_LEFT1, SKELETON_LORD_ATTACK_LEFT2, SKELETON_LORD_ATTACK_RIGHT1, SKELETON_LORD_ATTACK_RIGHT2);
-    } else {
-      loadAttackImages(SKELETON_LORD_ATTACK_PHASE2_UP1, SKELETON_LORD_ATTACK_PHASE2_UP2, SKELETON_LORD_ATTACK_PHASE2_DOWN1,
-          SKELETON_LORD_ATTACK_PHASE2_DOWN2, SKELETON_LORD_ATTACK_PHASE2_LEFT1, SKELETON_LORD_ATTACK_PHASE2_LEFT2, SKELETON_LORD_ATTACK_PHASE2_RIGHT1, SKELETON_LORD_ATTACK_PHASE2_RIGHT2);
-    }
-  }
-
-  private void loadImages(String skeletonLordUp1, String skeletonLordUp2, String skeletonLordDown1, String skeletonLordDown2, String skeletonLordLeft1, String skeletonLordLeft2, String skeletonLordRight1, String skeletonLordRight2) {
-    up1 = sprites.get(skeletonLordUp1, widthHeight, widthHeight);
-    up2 = sprites.get(skeletonLordUp2, widthHeight, widthHeight);
-    down1 = sprites.get(skeletonLordDown1, widthHeight, widthHeight);
-    down2 = sprites.get(skeletonLordDown2, widthHeight, widthHeight);
-    left1 = sprites.get(skeletonLordLeft1, widthHeight, widthHeight);
-    left2 = sprites.get(skeletonLordLeft2, widthHeight, widthHeight);
-    right1 = sprites.get(skeletonLordRight1, widthHeight, widthHeight);
-    right2 = sprites.get(skeletonLordRight2, widthHeight, widthHeight);
-  }
-
-  private void loadAttackImages(String skeletonLordAttackUp1, String skeletonLordAttackUp2, String skeletonLordAttackDown1, String skeletonLordAttackDown2, String skeletonLordAttackLeft1, String skeletonLordAttackLeft2, String skeletonLordAttackRight1, String skeletonLordAttackRight2) {
-    attackUp1 = sprites.get(skeletonLordAttackUp1, widthHeight, widthHeight * 2);
-    attackUp2 = sprites.get(skeletonLordAttackUp2, widthHeight, widthHeight * 2);
-    attackDown1 = sprites.get(skeletonLordAttackDown1, widthHeight, widthHeight * 2);
-    attackDown2 = sprites.get(skeletonLordAttackDown2, widthHeight, widthHeight * 2);
-    attackLeft1 = sprites.get(skeletonLordAttackLeft1, widthHeight * 2, widthHeight);
-    attackLeft2 = sprites.get(skeletonLordAttackLeft2, widthHeight * 2, widthHeight);
-    attackRight1 = sprites.get(skeletonLordAttackRight1, widthHeight * 2, widthHeight);
-    attackRight2 = sprites.get(skeletonLordAttackRight2, widthHeight * 2, widthHeight);
   }
 
   @Override
@@ -177,6 +134,48 @@ public class SkeletonLord extends Actor {
     if (!attacking) {
       checkIfShouldAttack(SHOOT_INTERVAL, TILE_SIZE * 7, TILE_SIZE * 5);
     }
+  }
+
+  private void getImage() {
+    if (!inRage) {
+      loadImages(SKELETON_LORD_UP1, SKELETON_LORD_UP2, SKELETON_LORD_DOWN1, SKELETON_LORD_DOWN2,
+          SKELETON_LORD_LEFT1, SKELETON_LORD_LEFT2, SKELETON_LORD_RIGHT1, SKELETON_LORD_RIGHT2);
+    } else {
+      loadImages(SKELETON_LORD_PHASE2_UP1, SKELETON_LORD_PHASE2_UP2, SKELETON_LORD_PHASE2_DOWN1, SKELETON_LORD_PHASE2_DOWN2,
+          SKELETON_LORD_PHASE2_LEFT1, SKELETON_LORD_PHASE2_LEFT2, SKELETON_LORD_PHASE2_RIGHT1, SKELETON_LORD_PHASE2_RIGHT2);
+    }
+  }
+
+  private void getAttackImage() {
+    if (!inRage) {
+      loadAttackImages(SKELETON_LORD_ATTACK_UP1, SKELETON_LORD_ATTACK_UP2, SKELETON_LORD_ATTACK_DOWN1, SKELETON_LORD_ATTACK_DOWN2,
+          SKELETON_LORD_ATTACK_LEFT1, SKELETON_LORD_ATTACK_LEFT2, SKELETON_LORD_ATTACK_RIGHT1, SKELETON_LORD_ATTACK_RIGHT2);
+    } else {
+      loadAttackImages(SKELETON_LORD_ATTACK_PHASE2_UP1, SKELETON_LORD_ATTACK_PHASE2_UP2, SKELETON_LORD_ATTACK_PHASE2_DOWN1,
+          SKELETON_LORD_ATTACK_PHASE2_DOWN2, SKELETON_LORD_ATTACK_PHASE2_LEFT1, SKELETON_LORD_ATTACK_PHASE2_LEFT2, SKELETON_LORD_ATTACK_PHASE2_RIGHT1, SKELETON_LORD_ATTACK_PHASE2_RIGHT2);
+    }
+  }
+
+  private void loadImages(String skeletonLordUp1, String skeletonLordUp2, String skeletonLordDown1, String skeletonLordDown2, String skeletonLordLeft1, String skeletonLordLeft2, String skeletonLordRight1, String skeletonLordRight2) {
+    up1 = sprites.get(skeletonLordUp1, widthHeight, widthHeight);
+    up2 = sprites.get(skeletonLordUp2, widthHeight, widthHeight);
+    down1 = sprites.get(skeletonLordDown1, widthHeight, widthHeight);
+    down2 = sprites.get(skeletonLordDown2, widthHeight, widthHeight);
+    left1 = sprites.get(skeletonLordLeft1, widthHeight, widthHeight);
+    left2 = sprites.get(skeletonLordLeft2, widthHeight, widthHeight);
+    right1 = sprites.get(skeletonLordRight1, widthHeight, widthHeight);
+    right2 = sprites.get(skeletonLordRight2, widthHeight, widthHeight);
+  }
+
+  private void loadAttackImages(String skeletonLordAttackUp1, String skeletonLordAttackUp2, String skeletonLordAttackDown1, String skeletonLordAttackDown2, String skeletonLordAttackLeft1, String skeletonLordAttackLeft2, String skeletonLordAttackRight1, String skeletonLordAttackRight2) {
+    attackUp1 = sprites.get(skeletonLordAttackUp1, widthHeight, widthHeight * 2);
+    attackUp2 = sprites.get(skeletonLordAttackUp2, widthHeight, widthHeight * 2);
+    attackDown1 = sprites.get(skeletonLordAttackDown1, widthHeight, widthHeight * 2);
+    attackDown2 = sprites.get(skeletonLordAttackDown2, widthHeight, widthHeight * 2);
+    attackLeft1 = sprites.get(skeletonLordAttackLeft1, widthHeight * 2, widthHeight);
+    attackLeft2 = sprites.get(skeletonLordAttackLeft2, widthHeight * 2, widthHeight);
+    attackRight1 = sprites.get(skeletonLordAttackRight1, widthHeight * 2, widthHeight);
+    attackRight2 = sprites.get(skeletonLordAttackRight2, widthHeight * 2, widthHeight);
   }
 }
 

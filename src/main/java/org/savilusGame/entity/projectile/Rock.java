@@ -24,11 +24,6 @@ public class Rock extends Projectile {
     getImage();
   }
 
-  private void getImage() {
-    up1 = down1 = left1 = right1 = sprites.get(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-    up2 = down2 = left2 = right2 = sprites.get(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
-  }
-
   @Override
   public Color getParticleColor() {
     return new Color(40, 50, 0);
@@ -57,6 +52,11 @@ public class Rock extends Projectile {
   @Override
   public boolean haveResource(Actor user) {
     return user.getAmmo() >= getUseCost();
+  }
+
+  private void getImage() {
+    up1 = down1 = left1 = right1 = sprites.get(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = sprites.get(ROCK_ATTACK, TILE_SIZE, TILE_SIZE);
   }
 
 }

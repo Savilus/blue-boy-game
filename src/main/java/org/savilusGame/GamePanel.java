@@ -62,61 +62,64 @@ import lombok.extern.slf4j.Slf4j;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class GamePanel extends JPanel implements Runnable, CollisionService, AudioService, TextRepository, ItemCatalog, RenderContext {
 
-  // SCREEN SETTINGS
-  final static int ORIGINAL_TITLE_SIZE = 16; // 16x16 tile
-  final static int SCALE = 3;
-  public final static int TILE_SIZE = ORIGINAL_TITLE_SIZE * SCALE; // 48 x 48 tile
-  final int maxScreenColumn = 20;
-  final int maxScreenRow = 12;
-  final int screenWidth = TILE_SIZE * maxScreenColumn; // 960 pixels
-  final int screenHeight = TILE_SIZE * maxScreenRow; // 576 pixels
+  /** Original 16-pixel artwork at 3x scale. */
+  public static final int TILE_SIZE = 16 * 3;
 
-  // WORLD SETTINGS
-  final int maxWorldCol = 50;
-  final int maxWorldRow = 50;
-  // FOR FULL SCREEN
-  int screenWidthFull = screenWidth;
-  int screenHeightFull = screenHeight;
-  BufferedImage tempScreen;
-  Graphics2D tempGraphic2d;
-  boolean fullScreenOn = false;
-
-  // SYSTEM
   static final int FPS = 60;
   static final Font DEBUG_FONT = new Font("Arial", Font.PLAIN, 20);
+
+  final SpriteCache spriteCache = new SpriteCache();
+  final PathfindingService pathFinder = new PathFinder();
   @Getter(AccessLevel.NONE)
   final WorldRenderer worldRenderer = new WorldRenderer();
-  final SpriteCache spriteCache = new SpriteCache();
-  final TileManager tileManager = new TileManager(this);
-  final World world = new World(tileManager, MAIN_MAP);
+  final TileManager tileManager;
+  final World world;
   final DevMode devMode = DevMode.fromConfig();
-  final KeyHandler keyHandler = new KeyHandler(this, devMode);
+  final KeyHandler keyHandler;
   Sound music = new Sound();
   Sound soundEffect = new Sound();
-  final PathfindingService pathFinder = new PathFinder();
-  CollisionDetector collisionDetector = new CollisionDetector(this);
-  AssetSetter assetSetter = new AssetSetter(this);
-  Thread gameThread;
-  SaveLoad saveLoad = new SaveLoad(this);
-  Config config = new Config(this);
-  UI ui = new UI(this);
-  EventHandler eventHandler = new EventHandler(this);
-  final EnvironmentManager environmentManager = new EnvironmentManager(this);
-  final GameMap gameMap = new GameMap(this);
-  final GameEntityFactory gameEntityFactory = new GameEntityFactory(this);
-  final CutsceneManager cutsceneManager = new CutsceneManager(this);
-
-  // ENTITY AND OBJECT
-  Player player = new Player(this, keyHandler);
-
-  // AREA
-  Area currentArea;
-  Area nextArea;
-
-  // GAME STATE
+  CollisionDetector collisionDetector;
+  AssetSetter assetSetter;
+  SaveLoad saveLoad;
+  Config config;
+  UI ui;
+  EventHandler eventHandler;
+  final EnvironmentManager environmentManager;
+  final GameMap gameMap;
+  final GameEntityFactory gameEntityFactory;
+  final CutsceneManager cutsceneManager;
+  Player player;
+  Area currentArea, nextArea;
   GameState gameState;
+  Thread gameThread;
+  BufferedImage tempScreen;
+  Graphics2D tempGraphic2d;
+
+  final int maxScreenColumn = 20;
+  final int maxScreenRow = 12;
+  final int screenWidth = TILE_SIZE * maxScreenColumn;
+  final int screenHeight = TILE_SIZE * maxScreenRow;
+  final int maxWorldCol = 50;
+  final int maxWorldRow = 50;
+  int screenWidthFull = screenWidth;
+  int screenHeightFull = screenHeight;
+  boolean fullScreenOn;
 
   public GamePanel() {
+    tileManager = new TileManager(this);
+    world = new World(tileManager, MAIN_MAP);
+    keyHandler = new KeyHandler(this, devMode);
+    collisionDetector = new CollisionDetector(this);
+    assetSetter = new AssetSetter(this);
+    saveLoad = new SaveLoad(this);
+    config = new Config(this);
+    ui = new UI(this);
+    eventHandler = new EventHandler(this);
+    environmentManager = new EnvironmentManager(this);
+    gameMap = new GameMap(this);
+    gameEntityFactory = new GameEntityFactory(this);
+    cutsceneManager = new CutsceneManager(this);
+    player = new Player(this, keyHandler);
     this.setPreferredSize(new Dimension(screenWidth, screenHeight));
     this.setBackground(Color.BLACK);
     this.setDoubleBuffered(true);
@@ -228,15 +231,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
     assetSetter.setMonster();
   }
 
-  private void setFullScreen() {
-    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-    double width = screenSize.getWidth();
-    double height = screenSize.getHeight();
-    Main.window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-    screenWidthFull = (int) width;
-    screenHeightFull = (int) height;
-  }
-
   // ------------------------------------------------------------------
   // Service interface delegations (Phase 0: no behavior change)
   // ------------------------------------------------------------------
@@ -320,12 +314,49 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
     return player.getWorldY() - player.getScreenY();
   }
 
+  /**
+   * One update+render pass per frame slot. The loop waits out the rest of the slot instead of
+   * spinning, and a stall never produces a burst of catch-up frames ({@link FrameScheduler}).
+   */
+  @Override
+  public void run() {
+    FrameScheduler scheduler = new FrameScheduler(FPS);
+    long timer = System.nanoTime();
+    long drawCount = 0;
+
+    while (Objects.nonNull(gameThread)) {
+      update();
+      drawToTempScreen(); // draw everything to the buffered image
+      drawToScreen(); // draw the buffered image to the screen
+      drawCount++;
+
+      long now = System.nanoTime();
+      scheduler.advance(now);
+
+      if (now - timer >= 1_000_000_000L) {
+        log.debug("FPS: {}", drawCount);
+        drawCount = 0;
+        timer = now;
+      }
+
+      awaitNextFrame(scheduler);
+    }
+  }
+
+  private void setFullScreen() {
+    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+    double width = screenSize.getWidth();
+    double height = screenSize.getHeight();
+    Main.window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+    screenWidthFull = (int) width;
+    screenHeightFull = (int) height;
+  }
+
   private void drawToScreen() {
     var screenGraphics = getGraphics();
     screenGraphics.drawImage(tempScreen, 0, 0, screenWidthFull, screenHeightFull, null);
     screenGraphics.dispose();
   }
-
 
   private void drawToTempScreen() {
     if (gameState == TITLE_STATE) {
@@ -421,35 +452,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
       environmentManager.update();
     } else if (gameState == PAUSE_STATE) {
       // nothing
-    }
-  }
-
-  /**
-   * One update+render pass per frame slot. The loop waits out the rest of the slot instead of
-   * spinning, and a stall never produces a burst of catch-up frames ({@link FrameScheduler}).
-   */
-  @Override
-  public void run() {
-    FrameScheduler scheduler = new FrameScheduler(FPS);
-    long timer = System.nanoTime();
-    long drawCount = 0;
-
-    while (Objects.nonNull(gameThread)) {
-      update();
-      drawToTempScreen(); // draw everything to the buffered image
-      drawToScreen(); // draw the buffered image to the screen
-      drawCount++;
-
-      long now = System.nanoTime();
-      scheduler.advance(now);
-
-      if (now - timer >= 1_000_000_000L) {
-        log.debug("FPS: {}", drawCount);
-        drawCount = 0;
-        timer = now;
-      }
-
-      awaitNextFrame(scheduler);
     }
   }
 

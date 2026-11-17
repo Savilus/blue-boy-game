@@ -13,7 +13,6 @@ import org.savilusGame.entity.shield.BlueShield;
 import org.savilusGame.entity.weapon.Axe;
 import org.savilusGame.entity.weapon.PickAxe;
 import org.savilusGame.enums.Direction;
-import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
 
 public class MerchantNPC extends Actor {
@@ -28,6 +27,13 @@ public class MerchantNPC extends Actor {
     setItems();
   }
 
+  @Override
+  public void speak() {
+    facePlayer();
+    gamePanel.setGameState(TRADE_STATE);
+    gamePanel.getUi().setDialogueObject(this);
+  }
+
   private void getPlayerImage() {
     up1 = down1 = left1 = right1 = sprites.get(MERCHANT_DOWN1, TILE_SIZE, TILE_SIZE);
     up2 = down2 = left2 = right2 = sprites.get(MERCHANT_DOWN2, TILE_SIZE, TILE_SIZE);
@@ -39,12 +45,5 @@ public class MerchantNPC extends Actor {
     inventory.add(new Axe(gamePanel));
     inventory.add(new PickAxe(gamePanel));
     inventory.add(new BlueShield(gamePanel));
-  }
-
-  @Override
-  public void speak() {
-    facePlayer();
-    gamePanel.setGameState(TRADE_STATE);
-    gamePanel.getUi().setDialogueObject(this);
   }
 }

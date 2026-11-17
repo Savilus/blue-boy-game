@@ -5,7 +5,7 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
-import java.util.WeakHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.savilusGame.GamePanel;
@@ -20,14 +20,15 @@ import lombok.experimental.NonFinal;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GameMap {
 
-  static int MINIMAP_DIAMETER = 200;
   static String CLOSE_MAP_KEY = "closeMapText";
   static String UI_MESSAGES = "uiMessages";
+  static int MINIMAP_DIAMETER = 200;
+
+  static BasicStroke MINIMAP_OUTLINE = new BasicStroke(3);
 
   GamePanel gamePanel;
   TileManager tileManager;
-  // Each loaded layout has one image. A replaced layout (dev reload) can be collected.
-  Map<int[][], BufferedImage> mapImages = new WeakHashMap<>();
+  Map<String, MapImage> mapImages = new HashMap<>();
   @Getter @Setter @NonFinal boolean miniMapOn = false;
 
   public GameMap(GamePanel gamePanel) {
@@ -46,7 +47,6 @@ public class GameMap {
     g2.drawString(TextManager.getUiText(UI_MESSAGES, CLOSE_MAP_KEY), 750, 550);
   }
 
-
   public void drawMiniMap(Graphics2D g2) {
     if (!miniMapOn) return;
     int x = gamePanel.getScreenWidth() - MINIMAP_DIAMETER - 15;
@@ -54,13 +54,13 @@ public class GameMap {
     drawMap(g2, x, y, MINIMAP_DIAMETER, MINIMAP_DIAMETER, true, false, 0.8F);
   }
 
-
   BufferedImage currentMapImage() {
-    int[][] layout = tileManager.getGameMaps().get(gamePanel.getWorld().getCurrentMap());
-    BufferedImage image = mapImages.get(layout);
-    if (image != null) return image;
+    String map = gamePanel.getWorld().getCurrentMap();
+    int[][] layout = tileManager.getGameMaps().get(map);
+    MapImage cached = mapImages.get(map);
+    if (cached != null && cached.layout() == layout) return cached.image();
 
-    image = new BufferedImage(layout.length * TILE_SIZE, layout[0].length * TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+    var image = new BufferedImage(layout.length * TILE_SIZE, layout[0].length * TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
     var graphics = image.createGraphics();
     try {
       for (int column = 0; column < layout.length; column++) {
@@ -71,7 +71,7 @@ public class GameMap {
     } finally {
       graphics.dispose();
     }
-    mapImages.put(layout, image);
+    mapImages.put(map, new MapImage(layout, image));
     return image;
   }
 
@@ -101,8 +101,9 @@ public class GameMap {
 
     if (isCircle) {
       g2.setColor(Color.WHITE);
-      g2.setStroke(new BasicStroke(3));
+      g2.setStroke(MINIMAP_OUTLINE);
       g2.draw(new Ellipse2D.Float(x, y, width, height));
     }
   }
+  private record MapImage(int[][] layout, BufferedImage image) {}
 }

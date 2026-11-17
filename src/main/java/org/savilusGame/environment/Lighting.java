@@ -25,12 +25,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Lighting {
 
-  static final int DAY_STATE_CHANGE_INTERVAL = 3000;
   static final String DAY_STATUS_KEY = "dayStatus";
   static final String DAY_KEY = "day";
   static final String DUSK_KEY = "dusk";
   static final String NIGHT_KEY = "night";
   static final String DAWN_KEY = "dawn";
+  static final int DAY_STATE_CHANGE_INTERVAL = 3000;
 
   static final Color[] GRADIENT_COLORS = {
       new Color(0, 0, 0.1f, 0.1F),
@@ -53,9 +53,9 @@ public class Lighting {
 
   final GamePanel gamePanel;
   BufferedImage darknessFilter;
+  DayState dayState = DAY;
   int dayCounter;
   float filterAlpha = 0f;
-  DayState dayState = DAY;
 
   public Lighting(GamePanel gamePanel) {
     this.gamePanel = gamePanel;

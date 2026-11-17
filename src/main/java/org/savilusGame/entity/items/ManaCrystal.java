@@ -1,7 +1,6 @@
 package org.savilusGame.entity.items;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.config.GameEntityNameFactory.MANA_CRYSTAL_BLANK;
 import static org.savilusGame.config.GameEntityNameFactory.MANA_CRYSTAL_FULL;
 import static org.savilusGame.config.GameEntityNameFactory.POWER_UP;
 

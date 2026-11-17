@@ -38,4 +38,29 @@ jobs:
           counts = {key: sum(int(suite.get(key, 0)) for suite in suites) for key in ('tests','failures','errors','skipped')}
           counter = xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').find("counter[@type='LINE']")
           print(f'::notice::JUnit: {counts}; JaCoCo lines: {counter.attrib}')
+          seams = {'PathFinder.java','PathFollower.java','Node.java','WorldNavigation.java','SpriteCache.java','WorldRenderer.java','UiFonts.java','CollisionDetector.java'}
+          covered = missed = 0
+          for source in xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').iter('sourcefile'):
+              if source.get('name') in seams:
+                  lines = source.find("counter[@type='LINE']")
+                  covered += int(lines.get('covered')); missed += int(lines.get('missed'))
+          print(f'::notice::New/rewritten seams {sorted(seams)}: {covered} covered, {missed} missed.')
           PY
+      - name: Exercise the live Swing window
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/classpath.gradle" <<'GRADLE'
+          allprojects { p -> p.plugins.withId('java') {
+            p.tasks.register('reviewClasspath') { doLast { println p.sourceSets.main.runtimeClasspath.asPath } }
+          } }
+          GRADLE
+          cp=$(./gradlew -q -I "$RUNNER_TEMP/classpath.gradle" reviewClasspath)
+          mkdir -p "$RUNNER_TEMP/dev"
+          sed 's/^  enabled: false/  enabled: true/' src/main/resources/config.yml > "$RUNNER_TEMP/dev/config.yml"
+          xvfb-run -a java -Dblueboy.dataDir="$RUNNER_TEMP/game-data" -cp "$RUNNER_TEMP/dev:$cp" .github/verification/DesktopCheck.java 2>&1 | tee "$RUNNER_TEMP/desktop.log"
+      - name: Report desktop failure
+        if: failure()
+        run: |
+          if test -f "$RUNNER_TEMP/desktop.log"; then
+            python3 -c 'import os,pathlib; print("::error::"+ (pathlib.Path(os.environ["RUNNER_TEMP"])/"desktop.log").read_text()[-1500:].replace("\n","%0A"))'
+          fi

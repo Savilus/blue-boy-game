@@ -32,17 +32,6 @@ public class Fireball extends Projectile {
     getImage();
   }
 
-  private void getImage() {
-    up1 = sprites.get(FIREBALL_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = sprites.get(FIREBALL_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = sprites.get(FIREBALL_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = sprites.get(FIREBALL_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = sprites.get(FIREBALL_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = sprites.get(FIREBALL_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = sprites.get(FIREBALL_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = sprites.get(FIREBALL_RIGHT2, TILE_SIZE, TILE_SIZE);
-  }
-
   @Override
   public Color getParticleColor() {
     return new Color(240, 50, 0);
@@ -71,5 +60,16 @@ public class Fireball extends Projectile {
   @Override
   public boolean haveResource(Actor user) {
     return user.getMana() >= getUseCost();
+  }
+
+  private void getImage() {
+    up1 = sprites.get(FIREBALL_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = sprites.get(FIREBALL_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = sprites.get(FIREBALL_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = sprites.get(FIREBALL_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = sprites.get(FIREBALL_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = sprites.get(FIREBALL_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = sprites.get(FIREBALL_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = sprites.get(FIREBALL_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 }

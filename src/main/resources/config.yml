@@ -1,5 +1,5 @@
 dev:
-  enabled: true
+  enabled: false
 
 font:
   maruMonica: /font/MaruMonica.ttf

@@ -15,8 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class Projectile extends Actor {
 
-  private final int SPRITE_CHANGE_INTERVAL = 12;
   private Actor owner;
+  private final int SPRITE_CHANGE_INTERVAL = 12;
   private int useCost;
 
   protected Projectile(GamePanel gamePanel) {

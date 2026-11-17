@@ -22,7 +22,6 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.items.Key;
 import org.savilusGame.enums.MonsterType;
-import org.savilusGame.enums.WorldGameTypes;
 
 public class Orc extends Actor {
 
@@ -56,17 +55,6 @@ public class Orc extends Actor {
     secondAttackMotionDuration = 85;
     getImage();
     getAttackImage();
-  }
-
-  private void getImage() {
-    up1 = sprites.get(ORC_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = sprites.get(ORC_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = sprites.get(ORC_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = sprites.get(ORC_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = sprites.get(ORC_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = sprites.get(ORC_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = sprites.get(ORC_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = sprites.get(ORC_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 
   public void getAttackImage() {
@@ -104,5 +92,16 @@ public class Orc extends Actor {
     if (!attacking) {
       checkIfShouldAttack(ATTACK_RATE, TILE_SIZE * 4, TILE_SIZE);
     }
+  }
+
+  private void getImage() {
+    up1 = sprites.get(ORC_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = sprites.get(ORC_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = sprites.get(ORC_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = sprites.get(ORC_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = sprites.get(ORC_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = sprites.get(ORC_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = sprites.get(ORC_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = sprites.get(ORC_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 }

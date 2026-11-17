@@ -12,7 +12,6 @@ import org.savilusGame.entity.items.BronzeCoin;
 import org.savilusGame.entity.items.Heart;
 import org.savilusGame.entity.items.ManaCrystal;
 import org.savilusGame.enums.MonsterType;
-import org.savilusGame.enums.WorldGameTypes;
 
 public class Bat extends Actor {
 
@@ -37,11 +36,6 @@ public class Bat extends Actor {
     getImage();
   }
 
-  private void getImage() {
-    up1 = down1 = left1 = right1 = sprites.get(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
-    up2 = down2 = left2 = right2 = sprites.get(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
-  }
-
   @Override
   public void checkDrop() {
     int percentForDrop = ThreadLocalRandom.current().nextInt(100) + 1;
@@ -62,5 +56,10 @@ public class Bat extends Actor {
   @Override
   public void setAction() {
     getRandomDirection(CHANGE_DIRECTION_INTERVAL);
+  }
+
+  private void getImage() {
+    up1 = down1 = left1 = right1 = sprites.get(BAT_DOWN1, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = sprites.get(BAT_DOWN2, TILE_SIZE, TILE_SIZE);
   }
 }

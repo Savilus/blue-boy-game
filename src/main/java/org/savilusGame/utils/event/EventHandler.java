@@ -37,6 +37,7 @@ public class EventHandler {
   static final String DAMAGE_PIT = "damagePit";
   static final String HEALING_POOL = "healingPool";
 
+  String tempMap;
   final GamePanel gamePanel;
   final Map<String, EventRect[][]> eventRect = new HashMap<>();
   final Map<String, Runnable> mapHandlers = Map.of(
@@ -44,7 +45,6 @@ public class EventHandler {
       DUNGEON_FIRST_FLOR, this::handleDungeonFirstFloorEvents,
       DUNGEON_SECOND_FLOR, this::handleDungeonSecondFloorEvents,
       INTERIOR_MAP, this::handleInteriorMapEvents);
-  String tempMap;
   int tempCol, tempRow;
 
   int previousEventX, previousEventY;
@@ -222,7 +222,7 @@ public class EventHandler {
       gamePanel.getSaveLoad().save();
     }
   }
-  
+
   private Player getPlayer() {
     return gamePanel.getPlayer();
   }

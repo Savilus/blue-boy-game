@@ -5,7 +5,6 @@ import static org.savilusGame.config.GameEntityNameFactory.LANTERN;
 import static org.savilusGame.enums.WorldGameTypes.LIGHTING;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.utils.text.TextManager;

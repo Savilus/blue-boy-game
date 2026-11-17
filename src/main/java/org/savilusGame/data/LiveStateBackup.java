@@ -25,25 +25,25 @@ import org.savilusGame.enums.Direction;
  */
 final class LiveStateBackup {
 
-  private final GamePanel gamePanel;
+  private final String currentMap;
 
+  private final GamePanel gamePanel;
   private final Map<String, List<InteractiveObject>> objects;
   private final Map<String, List<ItemDrop>> items;
   private final Map<String, List<Actor>> npcs;
   private final Map<String, List<Actor>> monsters;
   private final Map<String, List<InteractiveTile>> interactiveTiles;
-  private final Map<String, boolean[][]> completedEvents;
 
-  private final String currentMap;
+  private final Map<String, boolean[][]> completedEvents;
+  private final Area currentArea;
+  private final Area nextArea;
+  private final PlayerSnapshot player;
   private final boolean skeletonLordDefeated;
   private final boolean bossBattleOn;
   private final int previousEventX;
   private final int previousEventY;
-  private final boolean canTouchEvent;
-  private final Area currentArea;
-  private final Area nextArea;
 
-  private final PlayerSnapshot player;
+  private final boolean canTouchEvent;
 
   private LiveStateBackup(GamePanel gamePanel) {
     this.gamePanel = gamePanel;

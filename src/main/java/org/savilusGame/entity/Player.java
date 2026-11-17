@@ -55,7 +55,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.List;
 
-import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.projectile.Fireball;
@@ -77,9 +76,10 @@ import lombok.extern.slf4j.Slf4j;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Player extends Actor {
 
-  static final int CHANGE_SPRITE_INTERVAL = 12;
-  static final int INVINCIBLE_TIME = 60;
-  static final int SHOOT_RATE = 50;
+  /** Inventory grid width; the UI layout and the cursor navigation read it from here. */
+  public static final int INVENTORY_COLUMNS = 5;
+  /** Inventory grid height; the UI layout and the cursor navigation read it from here. */
+  public static final int INVENTORY_ROWS = 4;
   static final String PICKED_UP = "pickedUp";
   static final String DAMAGE_UI_MESSAGE = "damageUiMessage";
   static final String KILLED_UI_MESSAGE = "killedUiMessage";
@@ -88,10 +88,9 @@ public class Player extends Actor {
   static final String EXP_UI_MESSAGE = "expUiMessage";
   static final String INVENTORY_FULL = "inventoryFull";
   static final String EVENT_MESSAGES_KEY = "eventMessages";
-  /** Inventory grid width; the UI layout and the cursor navigation read it from here. */
-  public static final int INVENTORY_COLUMNS = 5;
-  /** Inventory grid height; the UI layout and the cursor navigation read it from here. */
-  public static final int INVENTORY_ROWS = 4;
+  static final int CHANGE_SPRITE_INTERVAL = 12;
+  static final int INVINCIBLE_TIME = 60;
+  static final int SHOOT_RATE = 50;
   /** The single inventory limit: exactly the slots the grid can show. */
   static final int MAX_INVENTORY_SIZE = INVENTORY_COLUMNS * INVENTORY_ROWS;
   static final int NEXT_LEVEL_EXP_STEP = 5;
@@ -278,23 +277,6 @@ public class Player extends Actor {
     return storeItem(stock, true);
   }
 
-  private boolean storeItem(Item item, boolean fromStock) {
-    if (!gamePanel.getGameEntityFactory().isItem(item.getId())) return false;
-    if (item.isStackable()) {
-      for (Item stacked : inventory) {
-        if (stacked.sameKind(item)) {
-          stacked.setStackCount(stacked.getStackCount() + (fromStock ? 1 : item.getStackCount()));
-          return true;
-        }
-      }
-    }
-    if (!doesInventoryHaveSpace()) return false;
-    Item acquired = fromStock ? gamePanel.getItem(item.getId()) : item;
-    if (acquired == null) return false;
-    inventory.add(acquired);
-    return true;
-  }
-
   public void damageMonster(Actor attacker, int monsterIndex, int attack, int knockBackPower) {
     var monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
     if (monster == null) return;
@@ -322,160 +304,6 @@ public class Player extends Actor {
       gamePanel.getUi().addMessage(String.format(TextManager.getUiText(UI_MESSAGE, EXP_UI_MESSAGE), monster.getExp()));
       gainExperience(monster.getExp());
     }
-  }
-
-  void damageProjectile(int projectileIndex) {
-    var projectile = entityAt(gamePanel.getWorld().currentProjectiles(), projectileIndex, "projectile");
-    if (projectile != null) {
-      projectile.setAlive(false);
-      generateParticle(projectile, projectile.getWorldX(), projectile.getWorldY());
-    }
-  }
-
-  void damageInteractiveTile(int interactiveTileIndex) {
-    var tiles = gamePanel.getWorld().currentInteractiveTiles();
-
-    var interactiveTile = entityAt(tiles, interactiveTileIndex, "interactive tile");
-    if (interactiveTile != null && !interactiveTile.isInvincible()
-        && interactiveTile.isDestructible() && interactiveTile.isCorrectItem(this)) {
-      interactiveTile.playSoundEffect();
-      interactiveTile.setCurrentLife(interactiveTile.getCurrentLife() - 1);
-      interactiveTile.setInvincible(true);
-
-      generateParticle(interactiveTile, interactiveTile.getWorldX(), interactiveTile.getWorldY());
-
-      if (interactiveTile.currentLife <= 0) {
-        gamePanel.getWorld().replaceInteractiveTile(gamePanel.getWorld().getCurrentMap(),
-            interactiveTileIndex, interactiveTile.getDestroyedForm());
-      }
-    }
-  }
-
-  private void getGuardImage() {
-    guardUp = sprites.get(BOY_GUARD_UP, TILE_SIZE, TILE_SIZE);
-    guardDown = sprites.get(BOY_GUARD_DOWN, TILE_SIZE, TILE_SIZE);
-    guardLeft = sprites.get(BOY_GUARD_LEFT, TILE_SIZE, TILE_SIZE);
-    guardRight = sprites.get(BOY_GUARD_RIGHT, TILE_SIZE, TILE_SIZE);
-  }
-
-  private void pickUpObject(int objectIndex) {
-    var interactedObject = entityAt(gamePanel.getWorld().currentObjects(), objectIndex, "object");
-    if (interactedObject == null) return;
-    if (keyHandler.isEnterPressed()) {
-      attackCanceled = true;
-      interactedObject.interact();
-    }
-  }
-
-  private void pickUpItems(int itemIndex) {
-    var itemDrops = gamePanel.getWorld().currentItems();
-    var drop = entityAt(itemDrops, itemIndex, "item");
-    if (drop == null) return;
-    var item = drop.getItem();
-
-    if (item.getType() == WorldGameTypes.PICK_UP) {
-      item.use(this);
-      itemDrops.remove(itemIndex);
-      return;
-    }
-
-    String text;
-    if (canObtainItem(item)) {
-      gamePanel.playSE(COIN);
-      text = String.format(TextManager.getUiText(UI_MESSAGE, PICKED_UP), item.getName());
-    } else {
-      text = TextManager.getUiText(UI_MESSAGE, INVENTORY_FULL);
-    }
-    gamePanel.getUi().addMessage(text);
-    itemDrops.remove(itemIndex);
-  }
-
-  /**
-   * Adds experience and resolves every level the reward pays for. Experience beyond the
-   * current requirement is kept for the next level instead of being discarded, and a single
-   * large reward can therefore grant several levels.
-   */
-  void gainExperience(int amount) {
-    if (amount <= 0) {
-      return;
-    }
-    exp += amount;
-    checkLevelUp();
-  }
-
-  private void checkLevelUp() {
-    boolean leveledUp = false;
-    while (exp >= nextLevelExp) {
-      exp -= nextLevelExp;
-      level++;
-      nextLevelExp += NEXT_LEVEL_EXP_STEP;
-      maxLife += LEVEL_UP_LIFE_BONUS;
-      strength++;
-      dexterity++;
-      leveledUp = true;
-    }
-    if (!leveledUp) {
-      return;
-    }
-    attack = getAttack();
-    defense = getDefense();
-    gamePanel.playSE(LEVEL_UP);
-    gamePanel.setGameState(DIALOG_STATE);
-
-    startDialogue(this, LVL_UP);
-  }
-
-  private void interactNPC(int npcIndex) {
-    var npc = entityAt(gamePanel.getWorld().currentNpc(), npcIndex, "NPC");
-    if (npc != null) {
-      if (gamePanel.getKeyHandler().isEnterPressed()) {
-        attackCanceled = true;
-        npc.speak();
-      }
-      npc.move(direction);
-    }
-  }
-
-  void detectMonsterContact(int monsterIndex) {
-    Actor monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
-    if (monster != null) {
-      if (!monster.isDying()) {
-        monster.damagePlayer(monster.getAttack());
-      }
-    }
-  }
-
-  private static <T> T entityAt(List<T> entities, int index, String kind) {
-    if (index == INIT_INDEX) return null;
-    if (entities == null || index < 0 || index >= entities.size() || entities.get(index) == null) {
-      log.warn("Ignoring invalid {} collision index {}", kind, index);
-      return null;
-    }
-    return entities.get(index);
-  }
-
-  private String[] getAttackImages() {
-    String[] attackKeys = null;
-
-    switch (currentWeapon.getType()) {
-      case WorldGameTypes.SWORD -> attackKeys = new String[]{
-          BOY_ATTACK_UP1, BOY_ATTACK_UP2, BOY_ATTACK_DOWN1, BOY_ATTACK_DOWN2,
-          BOY_ATTACK_LEFT1, BOY_ATTACK_LEFT2, BOY_ATTACK_RIGHT1, BOY_ATTACK_RIGHT2
-      };
-      case WorldGameTypes.AXE -> attackKeys = new String[]{
-          BOY_AXE_ATTACK_UP1, BOY_AXE_ATTACK_UP2, BOY_AXE_ATTACK_DOWN1, BOY_AXE_ATTACK_DOWN2,
-          BOY_AXE_ATTACK_LEFT1, BOY_AXE_ATTACK_LEFT2, BOY_AXE_ATTACK_RIGHT1, BOY_AXE_ATTACK_RIGHT2
-      };
-      case WorldGameTypes.PICKAXE -> attackKeys = new String[]{
-          PICK_AXE_UP_1, PICK_AXE_UP_2, PICK_AXE_DOWN_1, PICK_AXE_DOWN_2,
-          PICK_AXE_LEFT_1, PICK_AXE_LEFT_2, PICK_AXE_RIGHT_1, PICK_AXE_RIGHT_2
-      };
-    }
-    return attackKeys;
-  }
-
-  private boolean doesInventoryHaveSpace() {
-    return inventory.size() < MAX_INVENTORY_SIZE;
   }
 
   @Override
@@ -526,7 +354,6 @@ public class Player extends Actor {
           this,
           gamePanel.getWorld().currentInteractiveTiles()
       );
-
 
       // CHECK EVENT
       gamePanel.getEventHandler().checkEvent();
@@ -665,7 +492,6 @@ public class Player extends Actor {
       case ANY -> null;
     };
 
-
     if (transparent) {
       graphic2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
     }
@@ -676,6 +502,177 @@ public class Player extends Actor {
     // COLLISION RECTANGLE DRAWING
 //    graphic2d.setColor(Color.RED);
 //    graphic2d.drawRect(screenX + solidArea.x, screenY + solidArea.y, solidArea.width, solidArea.height);
+  }
+
+  void damageProjectile(int projectileIndex) {
+    var projectile = entityAt(gamePanel.getWorld().currentProjectiles(), projectileIndex, "projectile");
+    if (projectile != null) {
+      projectile.setAlive(false);
+      generateParticle(projectile, projectile.getWorldX(), projectile.getWorldY());
+    }
+  }
+
+  void damageInteractiveTile(int interactiveTileIndex) {
+    var tiles = gamePanel.getWorld().currentInteractiveTiles();
+
+    var interactiveTile = entityAt(tiles, interactiveTileIndex, "interactive tile");
+    if (interactiveTile != null && !interactiveTile.isInvincible()
+        && interactiveTile.isDestructible() && interactiveTile.isCorrectItem(this)) {
+      interactiveTile.playSoundEffect();
+      interactiveTile.setCurrentLife(interactiveTile.getCurrentLife() - 1);
+      interactiveTile.setInvincible(true);
+
+      generateParticle(interactiveTile, interactiveTile.getWorldX(), interactiveTile.getWorldY());
+
+      if (interactiveTile.currentLife <= 0) {
+        gamePanel.getWorld().replaceInteractiveTile(gamePanel.getWorld().getCurrentMap(),
+            interactiveTileIndex, interactiveTile.getDestroyedForm());
+      }
+    }
+  }
+
+  /**
+   * Adds experience and resolves every level the reward pays for. Experience beyond the
+   * current requirement is kept for the next level instead of being discarded, and a single
+   * large reward can therefore grant several levels.
+   */
+  void gainExperience(int amount) {
+    if (amount <= 0) {
+      return;
+    }
+    exp += amount;
+    checkLevelUp();
+  }
+
+  void detectMonsterContact(int monsterIndex) {
+    Actor monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
+    if (monster != null) {
+      if (!monster.isDying()) {
+        monster.damagePlayer(monster.getAttack());
+      }
+    }
+  }
+
+  private boolean storeItem(Item item, boolean fromStock) {
+    if (!gamePanel.getGameEntityFactory().isItem(item.getId())) return false;
+    if (item.isStackable()) {
+      for (Item stacked : inventory) {
+        if (stacked.sameKind(item)) {
+          stacked.setStackCount(stacked.getStackCount() + (fromStock ? 1 : item.getStackCount()));
+          return true;
+        }
+      }
+    }
+    if (!doesInventoryHaveSpace()) return false;
+    Item acquired = fromStock ? gamePanel.getItem(item.getId()) : item;
+    if (acquired == null) return false;
+    inventory.add(acquired);
+    return true;
+  }
+
+  private void getGuardImage() {
+    guardUp = sprites.get(BOY_GUARD_UP, TILE_SIZE, TILE_SIZE);
+    guardDown = sprites.get(BOY_GUARD_DOWN, TILE_SIZE, TILE_SIZE);
+    guardLeft = sprites.get(BOY_GUARD_LEFT, TILE_SIZE, TILE_SIZE);
+    guardRight = sprites.get(BOY_GUARD_RIGHT, TILE_SIZE, TILE_SIZE);
+  }
+
+  private void pickUpObject(int objectIndex) {
+    var interactedObject = entityAt(gamePanel.getWorld().currentObjects(), objectIndex, "object");
+    if (interactedObject == null) return;
+    if (keyHandler.isEnterPressed()) {
+      attackCanceled = true;
+      interactedObject.interact();
+    }
+  }
+
+  private void pickUpItems(int itemIndex) {
+    var itemDrops = gamePanel.getWorld().currentItems();
+    var drop = entityAt(itemDrops, itemIndex, "item");
+    if (drop == null) return;
+    var item = drop.getItem();
+
+    if (item.getType() == WorldGameTypes.PICK_UP) {
+      item.use(this);
+      itemDrops.remove(itemIndex);
+      return;
+    }
+
+    String text;
+    if (canObtainItem(item)) {
+      gamePanel.playSE(COIN);
+      text = String.format(TextManager.getUiText(UI_MESSAGE, PICKED_UP), item.getName());
+    } else {
+      text = TextManager.getUiText(UI_MESSAGE, INVENTORY_FULL);
+    }
+    gamePanel.getUi().addMessage(text);
+    itemDrops.remove(itemIndex);
+  }
+
+  private void checkLevelUp() {
+    boolean leveledUp = false;
+    while (exp >= nextLevelExp) {
+      exp -= nextLevelExp;
+      level++;
+      nextLevelExp += NEXT_LEVEL_EXP_STEP;
+      maxLife += LEVEL_UP_LIFE_BONUS;
+      strength++;
+      dexterity++;
+      leveledUp = true;
+    }
+    if (!leveledUp) {
+      return;
+    }
+    attack = getAttack();
+    defense = getDefense();
+    gamePanel.playSE(LEVEL_UP);
+    gamePanel.setGameState(DIALOG_STATE);
+
+    startDialogue(this, LVL_UP);
+  }
+
+  private void interactNPC(int npcIndex) {
+    var npc = entityAt(gamePanel.getWorld().currentNpc(), npcIndex, "NPC");
+    if (npc != null) {
+      if (gamePanel.getKeyHandler().isEnterPressed()) {
+        attackCanceled = true;
+        npc.speak();
+      }
+      npc.move(direction);
+    }
+  }
+
+  private static <T> T entityAt(List<T> entities, int index, String kind) {
+    if (index == INIT_INDEX) return null;
+    if (entities == null || index < 0 || index >= entities.size() || entities.get(index) == null) {
+      log.warn("Ignoring invalid {} collision index {}", kind, index);
+      return null;
+    }
+    return entities.get(index);
+  }
+
+  private String[] getAttackImages() {
+    String[] attackKeys = null;
+
+    switch (currentWeapon.getType()) {
+      case WorldGameTypes.SWORD -> attackKeys = new String[]{
+          BOY_ATTACK_UP1, BOY_ATTACK_UP2, BOY_ATTACK_DOWN1, BOY_ATTACK_DOWN2,
+          BOY_ATTACK_LEFT1, BOY_ATTACK_LEFT2, BOY_ATTACK_RIGHT1, BOY_ATTACK_RIGHT2
+      };
+      case WorldGameTypes.AXE -> attackKeys = new String[]{
+          BOY_AXE_ATTACK_UP1, BOY_AXE_ATTACK_UP2, BOY_AXE_ATTACK_DOWN1, BOY_AXE_ATTACK_DOWN2,
+          BOY_AXE_ATTACK_LEFT1, BOY_AXE_ATTACK_LEFT2, BOY_AXE_ATTACK_RIGHT1, BOY_AXE_ATTACK_RIGHT2
+      };
+      case WorldGameTypes.PICKAXE -> attackKeys = new String[]{
+          PICK_AXE_UP_1, PICK_AXE_UP_2, PICK_AXE_DOWN_1, PICK_AXE_DOWN_2,
+          PICK_AXE_LEFT_1, PICK_AXE_LEFT_2, PICK_AXE_RIGHT_1, PICK_AXE_RIGHT_2
+      };
+    }
+    return attackKeys;
+  }
+
+  private boolean doesInventoryHaveSpace() {
+    return inventory.size() < MAX_INVENTORY_SIZE;
   }
 
 }

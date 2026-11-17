@@ -14,7 +14,6 @@ public interface CollisionBody {
 
   Rectangle getSolidArea();
 
-
   int getWorldX();
 
   int getWorldY();

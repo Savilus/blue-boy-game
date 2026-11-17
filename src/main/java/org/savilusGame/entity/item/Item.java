@@ -29,29 +29,29 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PROTECTED)
 public class Item implements DialogueSpeaker {
 
-  private static final String EVENT_MESSAGES = "eventMessages";
+  String name;
 
+  String description;
   final GamePanel gamePanel;
   @Getter(AccessLevel.NONE)
   final SpriteCache sprites;
-  private final String id;
-  String name;
-  String description;
+  WorldGameTypes type;
+  BufferedImage icon;
+  AttackProfile attackProfile;
   int value;
   int price;
   int stackCount = 1;
-  private final boolean stackable;
-  WorldGameTypes type;
-  BufferedImage icon;
   int attackValue;
   int defenseValue;
   int knockBackPower;
   int lightRadius;
-  AttackProfile attackProfile;
+  private static final String EVENT_MESSAGES = "eventMessages";
+  private final String id;
+  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
 
   // DIALOGUE STATE
   private Map<String, List<String>> dialogues;
-  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
+  private final boolean stackable;
   private int dialogueIndex = 0;
 
   protected Item(GamePanel gamePanel, GameObject gameObject) {

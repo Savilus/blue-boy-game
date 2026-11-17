@@ -13,7 +13,6 @@ import org.savilusGame.entity.items.Heart;
 import org.savilusGame.entity.items.ManaCrystal;
 import org.savilusGame.entity.projectile.Rock;
 import org.savilusGame.enums.MonsterType;
-import org.savilusGame.enums.WorldGameTypes;
 
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
@@ -48,11 +47,6 @@ public class RedSlime extends Actor {
     getImage();
   }
 
-  private void getImage() {
-    up1 = down1 = left1 = right1 = sprites.get(RED_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    up2 = down2 = left2 = right2 = sprites.get(RED_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-  }
-
   @Override
   public void checkDrop() {
     int percentForDrop = ThreadLocalRandom.current().nextInt(100) + 1;
@@ -80,5 +74,10 @@ public class RedSlime extends Actor {
       getRandomDirection(RANDOM_DIRECTION_INTERVAL);
       checkIfShouldStartChasing(gamePanel.getPlayer(), START_CHASE_DISTANCE, CHASE_POSSIBILITY_RATE);
     }
+  }
+
+  private void getImage() {
+    up1 = down1 = left1 = right1 = sprites.get(RED_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = sprites.get(RED_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
   }
 }

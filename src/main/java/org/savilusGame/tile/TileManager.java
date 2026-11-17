@@ -76,7 +76,6 @@ public class TileManager {
     loadMap(DUNGEON_SECOND_FLOR);
   }
 
-
   /** Publish the entire layout at once. A dev reload also changes the identity used by the
    * navigation and map-image caches; a failed reload never publishes a partial map. */
   public void loadMap(String mapPath) {

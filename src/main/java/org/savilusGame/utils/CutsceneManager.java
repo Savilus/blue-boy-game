@@ -61,6 +61,18 @@ public class CutsceneManager {
     }
   }
 
+  /**
+   * The boss is identified by its type, never by its localized display name, so renaming or
+   * translating the monster cannot silently break the cutscene (the same identity rule the door
+   * and the key follow).
+   */
+  Optional<SkeletonLord> skeletonLord() {
+    return gamePanel.getWorld().currentMonsters().stream()
+        .filter(SkeletonLord.class::isInstance)
+        .map(SkeletonLord.class::cast)
+        .findFirst();
+  }
+
   private void skeletonLordScene() {
     var mapNpcs = gamePanel.getWorld().currentNpc();
 
@@ -123,18 +135,6 @@ public class CutsceneManager {
       gamePanel.stopBGM();
       gamePanel.playBGM(FINAL_BATTLE);
     }
-  }
-
-  /**
-   * The boss is identified by its type, never by its localized display name, so renaming or
-   * translating the monster cannot silently break the cutscene (the same identity rule the door
-   * and the key follow).
-   */
-  Optional<SkeletonLord> skeletonLord() {
-    return gamePanel.getWorld().currentMonsters().stream()
-        .filter(SkeletonLord.class::isInstance)
-        .map(SkeletonLord.class::cast)
-        .findFirst();
   }
 
   private void endingScene() {

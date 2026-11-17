@@ -25,10 +25,6 @@ public class BigRock extends Actor {
   /** The metal plate this rock is currently linked to, if any. */
   private InteractiveTile linkedEntity;
 
-  public InteractiveTile getLinkedEntity() {
-    return linkedEntity;
-  }
-
   public BigRock(GamePanel gamePanel) {
     super(gamePanel);
 
@@ -43,6 +39,43 @@ public class BigRock extends Actor {
     solidArea.y = 6;
     solidArea.width = 44;
     solidArea.height = 40;
+  }
+
+  public InteractiveTile getLinkedEntity() {
+    return linkedEntity;
+  }
+
+  @Override
+  public void move(Direction direction) {
+    this.direction = direction;
+    checkCollision();
+
+    if (!collisionOn) {
+      switch (direction) {
+        case UP:
+          worldY -= speed;
+          break;
+        case DOWN:
+          worldY += speed;
+          break;
+        case LEFT:
+          worldX -= speed;
+          break;
+        case RIGHT:
+          worldX += speed;
+          break;
+      }
+    }
+    detectPlate();
+  }
+
+  @Override
+  public void speak() {
+    startDialogue(this, USE);
+  }
+
+  @Override
+  public void update() {
   }
 
   private void detectPlate() {
@@ -93,39 +126,6 @@ public class BigRock extends Actor {
   private void getImage() {
     up1 = down1 = left1 = right1 = sprites.get(BIGROCK, TILE_SIZE, TILE_SIZE);
     up2 = down2 = left2 = right2 = sprites.get(BIGROCK, TILE_SIZE, TILE_SIZE);
-  }
-
-  @Override
-  public void move(Direction direction) {
-    this.direction = direction;
-    checkCollision();
-
-    if (!collisionOn) {
-      switch (direction) {
-        case UP:
-          worldY -= speed;
-          break;
-        case DOWN:
-          worldY += speed;
-          break;
-        case LEFT:
-          worldX -= speed;
-          break;
-        case RIGHT:
-          worldX += speed;
-          break;
-      }
-    }
-    detectPlate();
-  }
-
-  @Override
-  public void speak() {
-    startDialogue(this, USE);
-  }
-
-  @Override
-  public void update() {
   }
 
 }

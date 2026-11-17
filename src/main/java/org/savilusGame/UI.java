@@ -24,7 +24,6 @@ import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -32,20 +31,16 @@ import java.util.Objects;
 import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.Player;
-import org.savilusGame.entity.item.Item;
 import org.savilusGame.service.DialogueSpeaker;
 import org.savilusGame.enums.SubState;
 import org.savilusGame.environment.Lighting;
 import org.savilusGame.utils.text.TextManager;
 
-import io.vavr.control.Try;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -66,7 +61,6 @@ public class UI {
   static final String MAP = "map";
   static final String CLOSE_KEY = "ESC";
   static final String SPACE_KEY = "SPACE";
-  static final String DEFAULT_FONT = "SansSerif";
   static final String MENU_OPTIONS = "menuOptions";
   static final String DIALOGUES = "dialogues";
   static final String SETTINGS = "settings";
@@ -115,6 +109,17 @@ public class UI {
   static final String ESCAPE_BACK = "escapeBack";
   static final String YOUR_COIN = "yourCoin";
 
+  String currentDialogue = StringUtils.EMPTY;
+  static final Color LIFE_BAR_BACKGROUND = new Color(35, 35, 35);
+  static final Color LIFE_BAR_FILL = new Color(255, 0, 30);
+  static final Color EQUIPPED_BACKGROUND = new Color(240, 190, 90);
+  static final Color STACK_SHADOW = new Color(60, 60, 60);
+  static final Color WINDOW_BACKGROUND = new Color(0, 0, 0, 220);
+  static final Color GAME_OVER_BACKGROUND = new Color(0, 0, 0, 150);
+  static final BasicStroke OPTION_OUTLINE = new BasicStroke(2);
+  static final BasicStroke CURSOR_OUTLINE = new BasicStroke(3);
+
+  static final BasicStroke WINDOW_OUTLINE = new BasicStroke(5);
   final BufferedImage heartFull, heartHalf, heartBlank, manaCrystalFull, manaCrystalBlank, coin;
   final GamePanel gamePanel;
   Graphics2D graphics2D;
@@ -123,23 +128,21 @@ public class UI {
   final ArrayList<Integer> messageCounter = new ArrayList<>();
   final List<String> titleOptions = List.of(TextManager.getSettingText(MENU_OPTIONS, NEW_GAME),
       TextManager.getSettingText(MENU_OPTIONS, LOAD_GAME), TextManager.getSettingText(MENU_OPTIONS, QUIT));
-  DialogueSpeaker dialogueObject;
 
-  int commandNum = 0;
+  DialogueSpeaker dialogueObject;
   SubState subState = DEFAULT;
+  final StringBuilder combinedText = new StringBuilder();
+  int commandNum = 0;
   int playerSlotCol = 0;
   int playerSlotRow = 0;
   int npcSlotCol = 0;
   int npcSlotRow = 0;
   int transitionCounter = 0;
   int characterIndex = 0;
-  String currentDialogue = StringUtils.EMPTY;
-  final StringBuilder combinedText = new StringBuilder();
 
   public UI(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
-    fonts = new UiFonts(Try.of(() -> loadFont(MARU_MONICA_FONT))
-        .recover(ignored -> getDefaultFont()).get());
+    fonts = UiFonts.load(MARU_MONICA_FONT);
 
     // HUD sprites
     heartFull = gamePanel.getSpriteCache().get(HEART_FULL, TILE_SIZE, TILE_SIZE);
@@ -185,6 +188,162 @@ public class UI {
     }
   }
 
+  public void optionsControl(int frameX, int frameY) {
+    int textX = getXForCenteredText(TextManager.getSettingText(CONTROLS, CONTROL));
+    int textY = frameY + TILE_SIZE;
+    graphics2D.drawString(TextManager.getSettingText(CONTROLS, CONTROL), textX, textY);
+
+    textX = frameX + TILE_SIZE;
+    textY += TILE_SIZE;
+
+    String[] optionsLabels = {
+        TextManager.getSettingText(CONTROLS, MOVE),
+        TextManager.getSettingText(CONTROLS, CONFIRM_ATTACK),
+        TextManager.getSettingText(CONTROLS, SHOOT_CAST),
+        TextManager.getSettingText(CONTROLS, PARRY),
+        TextManager.getSettingText(CONTROLS, CHARACTER_SCREEN),
+        TextManager.getSettingText(CONTROLS, PAUSE),
+        TextManager.getSettingText(MENU_OPTIONS, OPTIONS),
+        TextManager.getSettingText(CONTROLS, MAP)
+    };
+
+    for (String label : optionsLabels) {
+      graphics2D.drawString(label, textX, textY);
+      textY += TILE_SIZE - 10;
+    }
+
+    textX = frameX + TILE_SIZE * 6;
+    textY = frameY + TILE_SIZE * 2;
+
+    String[] controlLabels = {
+        CHARACTER_CONTROL, CONFIRM, PROJECTILE_KEY,
+        SPACE_KEY, CHARACTER_KEY, PAUSE_KEY, CLOSE_KEY, MAP_KEY
+    };
+
+    for (String key : controlLabels) {
+      graphics2D.drawString(key, textX, textY);
+      textY += TILE_SIZE - 10;
+    }
+
+    // BACK
+    textX = frameX + TILE_SIZE;
+    textY = frameY + TILE_SIZE * 9;
+    graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, BACK), textX, textY);
+
+    if (commandNum == 0) {
+      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      if (gamePanel.getKeyHandler().isEnterPressed()) {
+        subState = MAIN_SETTINGS;
+        commandNum = 3;
+      }
+    }
+  }
+
+  public int getItemIndexFromInventory(int slotCol, int slotRow) {
+    return slotCol + (slotRow * Player.INVENTORY_COLUMNS);
+  }
+
+  public void drawMonsterLife() {
+    var monsters = gamePanel.getWorld().currentMonsters();
+    if (Objects.isNull(monsters)) return;
+
+    for (Actor monster : monsters) {
+      if (Objects.nonNull(monster) && monster.inCamera()) {
+        boolean isBoss = monster.isBoss();
+        double oneScaleLifeBar = (double) (TILE_SIZE * (isBoss ? 8 : 1)) / monster.getMaxLife();
+        double hpBarValue = oneScaleLifeBar * monster.getCurrentLife();
+        int barWidth = TILE_SIZE * (isBoss ? 8 : 1);
+        int barHeight = isBoss ? 20 : 10;
+        int x = isBoss ? (gamePanel.getScreenWidth() / 2 - TILE_SIZE * 4) : monster.getScreenX();
+        int y = isBoss ? (TILE_SIZE * 10) : (monster.getScreenY() - 15);
+
+        if (monster.isHpBarOn()) {
+          graphics2D.setColor(LIFE_BAR_BACKGROUND);
+          graphics2D.fillRect(x - 1, y - 1, barWidth + 2, barHeight + 2);
+
+          graphics2D.setColor(LIFE_BAR_FILL);
+          graphics2D.fillRect(x, y, (int) hpBarValue, barHeight);
+        }
+
+        if (isBoss) {
+          graphics2D.setFont(fonts.getBossName());
+          graphics2D.setColor(Color.WHITE);
+          graphics2D.drawString(monster.getName(), x + 4, y - 10);
+        } else {
+          monster.setHpBarCounter(monster.getHpBarCounter() + 1);
+          if (monster.getHpBarCounter() > 600) {
+            monster.setHpBarCounter(0);
+            monster.setHpBarOn(false);
+          }
+        }
+      }
+    }
+  }
+
+  public void drawDialogueScreen() {
+    // WINDOW
+    int x = TILE_SIZE * 3;
+    int y = TILE_SIZE / 2;
+    int width = gamePanel.getScreenWidth() - (TILE_SIZE * 6);
+    int height = TILE_SIZE * 4;
+    drawSubWindow(x, y, width, height);
+
+    graphics2D.setFont(fonts.getBody());
+    x += TILE_SIZE;
+    y += TILE_SIZE;
+
+    List<String> dialoguesForSet = dialogueObject.getDialogues().get(dialogueObject.getDialogueSet());
+
+    if (Objects.nonNull(dialoguesForSet) && !dialoguesForSet.isEmpty()) {
+      if (dialogueObject.getDialogueIndex() >= dialoguesForSet.size()) {
+        dialogueObject.setDialogueIndex(0);
+      }
+
+      String fullDialogue = dialoguesForSet.get(dialogueObject.getDialogueIndex());
+      currentDialogue = fullDialogue;
+
+      if (characterIndex < fullDialogue.length()) {
+        combinedText.append(fullDialogue.charAt(characterIndex));
+        currentDialogue = combinedText.toString();
+        characterIndex++;
+        gamePanel.playSE(SPEAK);
+      }
+
+      if (gamePanel.getKeyHandler().isEnterPressed() && (gamePanel.getGameState() == DIALOG_STATE
+          || gamePanel.getGameState() == CUTSCENE_STATE)) {
+
+        characterIndex = 0;
+        combinedText.setLength(0);
+        dialogueObject.setDialogueIndex(dialogueObject.getDialogueIndex() + 1);
+        gamePanel.getKeyHandler().setEnterPressed(false);
+
+        if (dialogueObject.getDialogueIndex() >= dialoguesForSet.size()) {
+          dialogueObject.setDialogueIndex(0);
+          if (gamePanel.getGameState() == CUTSCENE_STATE) {
+            gamePanel.getCutsceneManager().setScenePhase(gamePanel.getCutsceneManager().getScenePhase() + 1);
+          } else {
+            gamePanel.setGameState(PLAY_STATE);
+          }
+        }
+      }
+    } else {
+      dialogueObject.setDialogueIndex(0);
+      if (gamePanel.getGameState() == DIALOG_STATE) {
+        gamePanel.setGameState(PLAY_STATE);
+      }
+    }
+
+    for (String line : currentDialogue.split("\n")) {
+      graphics2D.drawString(line, x, y);
+      y += 40;
+    }
+  }
+
+  public int getXForCenteredText(String text) {
+    int length = (int) graphics2D.getFontMetrics().getStringBounds(text, graphics2D).getWidth();
+    return gamePanel.getScreenWidth() / 2 - length / 2;
+  }
+
   private void drawSleepScreen() {
     transitionCounter++;
 
@@ -209,7 +368,7 @@ public class UI {
   }
 
   private void drawGameOverScreen() {
-    graphics2D.setColor(new Color(0, 0, 0, 150));
+    graphics2D.setColor(GAME_OVER_BACKGROUND);
     graphics2D.fillRect(0, 0, gamePanel.getScreenWidth(), gamePanel.getScreenHeight());
 
     // SHADOW
@@ -519,7 +678,7 @@ public class UI {
     // FULL SCREEN CHECK BOX
     textX = frameX + (int) (TILE_SIZE * 4.5);
     textY = frameY + TILE_SIZE * 2 + TILE_SIZE / 2;
-    graphics2D.setStroke(new BasicStroke(2));
+    graphics2D.setStroke(OPTION_OUTLINE);
     graphics2D.drawRect(textX, textY, TILE_SIZE / 2, TILE_SIZE / 2);
     if (gamePanel.isFullScreenOn()) {
       graphics2D.fillRect(textX, textY, TILE_SIZE / 2, TILE_SIZE / 2);
@@ -539,58 +698,6 @@ public class UI {
 
     gamePanel.getConfig().saveConfig();
   }
-
-  public void optionsControl(int frameX, int frameY) {
-    int textX = getXForCenteredText(TextManager.getSettingText(CONTROLS, CONTROL));
-    int textY = frameY + TILE_SIZE;
-    graphics2D.drawString(TextManager.getSettingText(CONTROLS, CONTROL), textX, textY);
-
-    textX = frameX + TILE_SIZE;
-    textY += TILE_SIZE;
-
-    String[] optionsLabels = {
-        TextManager.getSettingText(CONTROLS, MOVE),
-        TextManager.getSettingText(CONTROLS, CONFIRM_ATTACK),
-        TextManager.getSettingText(CONTROLS, SHOOT_CAST),
-        TextManager.getSettingText(CONTROLS, PARRY),
-        TextManager.getSettingText(CONTROLS, CHARACTER_SCREEN),
-        TextManager.getSettingText(CONTROLS, PAUSE),
-        TextManager.getSettingText(MENU_OPTIONS, OPTIONS),
-        TextManager.getSettingText(CONTROLS, MAP)
-    };
-
-    for (String label : optionsLabels) {
-      graphics2D.drawString(label, textX, textY);
-      textY += TILE_SIZE - 10;
-    }
-
-    textX = frameX + TILE_SIZE * 6;
-    textY = frameY + TILE_SIZE * 2;
-
-    String[] controlLabels = {
-        CHARACTER_CONTROL, CONFIRM, PROJECTILE_KEY,
-        SPACE_KEY, CHARACTER_KEY, PAUSE_KEY, CLOSE_KEY, MAP_KEY
-    };
-
-    for (String key : controlLabels) {
-      graphics2D.drawString(key, textX, textY);
-      textY += TILE_SIZE - 10;
-    }
-
-    // BACK
-    textX = frameX + TILE_SIZE;
-    textY = frameY + TILE_SIZE * 9;
-    graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, BACK), textX, textY);
-
-    if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
-      if (gamePanel.getKeyHandler().isEnterPressed()) {
-        subState = MAIN_SETTINGS;
-        commandNum = 3;
-      }
-    }
-  }
-
 
   private void drawInventory(Actor gameEntity, boolean cursor) {
     int frameX;
@@ -620,7 +727,6 @@ public class UI {
     int slotY = slotYStart;
     int slotSize = TILE_SIZE + 3;
 
-
     // DRAW PLAYER'S ITEMS
     for (int inventoryItem = 0; inventoryItem < gameEntity.getInventory().size(); inventoryItem++) {
 
@@ -628,7 +734,7 @@ public class UI {
       if (gameEntity.getInventory().get(inventoryItem) == gameEntity.getCurrentWeapon() ||
           gameEntity.getInventory().get(inventoryItem) == gameEntity.getCurrentShield() ||
           gameEntity.getInventory().get(inventoryItem) == gameEntity.getCurrentLightItem()) {
-        graphics2D.setColor(new Color(240, 190, 90));
+        graphics2D.setColor(EQUIPPED_BACKGROUND);
         graphics2D.fillRoundRect(slotX, slotY, TILE_SIZE, TILE_SIZE, 10, 10);
       }
       graphics2D.drawImage(gameEntity.getInventory().get(inventoryItem).getIcon(), slotX, slotY, null);
@@ -642,7 +748,7 @@ public class UI {
         amountY = slotY + TILE_SIZE;
 
         //SHADOW
-        graphics2D.setColor(new Color(60, 60, 60));
+        graphics2D.setColor(STACK_SHADOW);
         graphics2D.drawString(String.valueOf(gameEntity.getInventory().get(inventoryItem).getStackCount()), amountX, amountY);
         // NUMBER
         graphics2D.setColor(Color.WHITE);
@@ -663,7 +769,7 @@ public class UI {
       int cursorY = slotYStart + (slotSize * slotRow);
 
       graphics2D.setColor(Color.WHITE);
-      graphics2D.setStroke(new BasicStroke(3));
+      graphics2D.setStroke(CURSOR_OUTLINE);
       graphics2D.drawRoundRect(cursorX, cursorY, TILE_SIZE, TILE_SIZE, 10, 10);
 
       // DESCRIPTION FRAME
@@ -684,10 +790,6 @@ public class UI {
         }
       }
     }
-  }
-
-  public int getItemIndexFromInventory(int slotCol, int slotRow) {
-    return slotCol + (slotRow * Player.INVENTORY_COLUMNS);
   }
 
   private void optionsFullScreenNotification(int frameX, int frameY) {
@@ -871,43 +973,6 @@ public class UI {
     }
   }
 
-  public void drawMonsterLife() {
-    var monsters = gamePanel.getWorld().currentMonsters();
-    if (Objects.isNull(monsters)) return;
-
-    for (Actor monster : monsters) {
-      if (Objects.nonNull(monster) && monster.inCamera()) {
-        boolean isBoss = monster.isBoss();
-        double oneScaleLifeBar = (double) (TILE_SIZE * (isBoss ? 8 : 1)) / monster.getMaxLife();
-        double hpBarValue = oneScaleLifeBar * monster.getCurrentLife();
-        int barWidth = TILE_SIZE * (isBoss ? 8 : 1);
-        int barHeight = isBoss ? 20 : 10;
-        int x = isBoss ? (gamePanel.getScreenWidth() / 2 - TILE_SIZE * 4) : monster.getScreenX();
-        int y = isBoss ? (TILE_SIZE * 10) : (monster.getScreenY() - 15);
-
-        if (monster.isHpBarOn()) {
-          graphics2D.setColor(new Color(35, 35, 35));
-          graphics2D.fillRect(x - 1, y - 1, barWidth + 2, barHeight + 2);
-
-          graphics2D.setColor(new Color(255, 0, 30));
-          graphics2D.fillRect(x, y, (int) hpBarValue, barHeight);
-        }
-
-        if (isBoss) {
-          graphics2D.setFont(fonts.getBossName());
-          graphics2D.setColor(Color.WHITE);
-          graphics2D.drawString(monster.getName(), x + 4, y - 10);
-        } else {
-          monster.setHpBarCounter(monster.getHpBarCounter() + 1);
-          if (monster.getHpBarCounter() > 600) {
-            monster.setHpBarCounter(0);
-            monster.setHpBarOn(false);
-          }
-        }
-      }
-    }
-  }
-
   private void drawTitleScreen() {
     // CLEAR
     graphics2D.setColor(Color.BLACK);
@@ -947,77 +1012,12 @@ public class UI {
     drawMessage();
   }
 
-  public void drawDialogueScreen() {
-    // WINDOW
-    int x = TILE_SIZE * 3;
-    int y = TILE_SIZE / 2;
-    int width = gamePanel.getScreenWidth() - (TILE_SIZE * 6);
-    int height = TILE_SIZE * 4;
-    drawSubWindow(x, y, width, height);
-
-    graphics2D.setFont(fonts.getBody());
-    x += TILE_SIZE;
-    y += TILE_SIZE;
-
-    List<String> dialoguesForSet = dialogueObject.getDialogues().get(dialogueObject.getDialogueSet());
-
-    if (Objects.nonNull(dialoguesForSet) && !dialoguesForSet.isEmpty()) {
-      if (dialogueObject.getDialogueIndex() >= dialoguesForSet.size()) {
-        dialogueObject.setDialogueIndex(0);
-      }
-
-      String fullDialogue = dialoguesForSet.get(dialogueObject.getDialogueIndex());
-      currentDialogue = fullDialogue;
-
-      if (characterIndex < fullDialogue.length()) {
-        combinedText.append(fullDialogue.charAt(characterIndex));
-        currentDialogue = combinedText.toString();
-        characterIndex++;
-        gamePanel.playSE(SPEAK);
-      }
-
-      if (gamePanel.getKeyHandler().isEnterPressed() && (gamePanel.getGameState() == DIALOG_STATE
-          || gamePanel.getGameState() == CUTSCENE_STATE)) {
-
-        characterIndex = 0;
-        combinedText.setLength(0);
-        dialogueObject.setDialogueIndex(dialogueObject.getDialogueIndex() + 1);
-        gamePanel.getKeyHandler().setEnterPressed(false);
-
-
-        if (dialogueObject.getDialogueIndex() >= dialoguesForSet.size()) {
-          dialogueObject.setDialogueIndex(0);
-          if (gamePanel.getGameState() == CUTSCENE_STATE) {
-            gamePanel.getCutsceneManager().setScenePhase(gamePanel.getCutsceneManager().getScenePhase() + 1);
-          } else {
-            gamePanel.setGameState(PLAY_STATE);
-          }
-        }
-      }
-    } else {
-      dialogueObject.setDialogueIndex(0);
-      if (gamePanel.getGameState() == DIALOG_STATE) {
-        gamePanel.setGameState(PLAY_STATE);
-      }
-    }
-
-    for (String line : currentDialogue.split("\n")) {
-      graphics2D.drawString(line, x, y);
-      y += 40;
-    }
-  }
-
-  public int getXForCenteredText(String text) {
-    int length = (int) graphics2D.getFontMetrics().getStringBounds(text, graphics2D).getWidth();
-    return gamePanel.getScreenWidth() / 2 - length / 2;
-  }
-
   private void drawSubWindow(int x, int y, int width, int height) {
-    graphics2D.setColor(new Color(0, 0, 0, 220));
+    graphics2D.setColor(WINDOW_BACKGROUND);
     graphics2D.fillRoundRect(x, y, width, height, 35, 35);
 
-    graphics2D.setStroke(new BasicStroke(5));
-    graphics2D.setColor(new Color(255, 255, 255));
+    graphics2D.setStroke(WINDOW_OUTLINE);
+    graphics2D.setColor(Color.WHITE);
     graphics2D.drawRoundRect(x + 5, y + 5, width - 10, height - 10, 25, 25);
 
   }
@@ -1050,16 +1050,5 @@ public class UI {
   private int getXForAlignTextToRight(String text, int tailX) {
     int length = (int) graphics2D.getFontMetrics().getStringBounds(text, graphics2D).getWidth();
     return tailX - length;
-  }
-
-  private Font loadFont(String fontPath) throws Exception {
-    try (InputStream fontInputStream = Objects.requireNonNull(getClass().getResourceAsStream(fontPath))) {
-      return Font.createFont(Font.TRUETYPE_FONT, fontInputStream);
-    }
-  }
-
-  private Font getDefaultFont() {
-    log.info("Loading default system font due to an error.");
-    return new Font(DEFAULT_FONT, Font.PLAIN, 12);
   }
 }

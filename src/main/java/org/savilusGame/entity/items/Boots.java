@@ -4,7 +4,6 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.config.GameEntityNameFactory.BOOTS;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.GameObject;
 

@@ -8,7 +8,6 @@ import static org.savilusGame.enums.Direction.DOWN;
 import static org.savilusGame.enums.Direction.LEFT;
 import static org.savilusGame.enums.Direction.RIGHT;
 import static org.savilusGame.enums.Direction.UP;
-import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -24,7 +23,6 @@ import org.savilusGame.service.DepthDrawable;
 import org.savilusGame.ai.Node;
 import org.savilusGame.ai.PathFollower;
 import org.savilusGame.entity.item.Item;
-import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.entity.projectile.Projectile;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.service.DialogueSpeaker;
@@ -50,33 +48,31 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PROTECTED)
 public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpeaker, Movable, ParticleSpec {
 
-  private static final String EVENT_MESSAGES = "eventMessages";
-  private static final int PARRY_WINDOW = 10;
-  private static final int DELAY_SPRITE_CHANGE = -60;
-  private static final int INVINCIBLE_TIME = 40;
-  private static final int SHOOT_INTERVAL = 50;
-  private static final int OFF_BALANCE_TIME = 60;
+  String name;
   static final int KNOCK_BACK_TIME = 5;
-  private static final int SPRITE_CHANGE_TIME = 24;
-
   final GamePanel gamePanel;
   @Getter(AccessLevel.NONE)
   final SpriteCache sprites;
-
   BufferedImage mainImage, mainImage2, mainImage3;
   BufferedImage up1, up2, down1, down2, left1, left2, right1, right2;
   BufferedImage attackUp1, attackUp2, attackDown1, attackDown2, attackLeft1, attackLeft2, attackRight1, attackRight2;
   BufferedImage guardUp, guardDown, guardLeft, guardRight;
+
   Rectangle solidArea = new Rectangle(0, 0, 45, 45);
   Rectangle attackArea = new Rectangle(0, 0, 0, 0);
-  Map<String, List<String>> dialogues;
-  boolean collision = false;
-  Actor attacker;
 
-  // STATE
-  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
-  private int dialogueIndex = 0;
+  Map<String, List<String>> dialogues;
+  Actor attacker;
   Direction direction = Direction.ANY;
+  Direction knockBackDirection;
+  Item currentLightItem;
+  Item currentWeapon;
+  Item currentShield;
+  Projectile projectile;
+  // INVENTORY
+  ArrayList<Item> inventory = new ArrayList<>();
+
+  boolean collision = false;
   int spriteNum = 1;
   boolean invincible = false;
   boolean collisionOn = false;
@@ -84,24 +80,15 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
   int worldX, worldY;
   boolean alive = true;
   boolean dying = false;
-  private boolean hpBarOn = false;
-  @Getter(AccessLevel.NONE)
-  @Setter(AccessLevel.NONE)
-  private PathFollower pathFollower;
-  private boolean onPath;
   boolean knockBack = false;
-  Direction knockBackDirection;
   boolean guarding = false;
   boolean transparent = false;
   boolean offBalance = false;
   boolean inRage = false;
   boolean sleep = false;
-  private boolean temporaryObject = false;
-
   // CHARACTER ATTRIBUTES
   int defaultSpeed;
   int speed;
-  String name;
   int maxLife;
   int currentLife;
   int level;
@@ -121,11 +108,6 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
   int knockBackPower = 0;
   boolean boss;
   boolean monster = false;
-  Item currentLightItem;
-  Item currentWeapon;
-  Item currentShield;
-  Projectile projectile;
-
   // COUNTER
   int invincibleCounter = 0;
   int actionLockCounter = 0;
@@ -137,8 +119,21 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
   int guardCounter = 0;
   int offBalanceCounter = 0;
 
-  // INVENTORY
-  ArrayList<Item> inventory = new ArrayList<>();
+  private static final String EVENT_MESSAGES = "eventMessages";
+  private String dialogueSet = org.apache.commons.lang3.StringUtils.EMPTY;
+  private static final int PARRY_WINDOW = 10;
+  private static final int DELAY_SPRITE_CHANGE = -60;
+  private static final int INVINCIBLE_TIME = 40;
+  private static final int SHOOT_INTERVAL = 50;
+  private static final int OFF_BALANCE_TIME = 60;
+  private static final int SPRITE_CHANGE_TIME = 24;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  private PathFollower pathFollower;
+  private int dialogueIndex = 0;
+  private boolean hpBarOn = false;
+  private boolean onPath;
+  private boolean temporaryObject = false;
 
   public Actor(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
@@ -327,30 +322,6 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
     offBalanceCounter = 0;
   }
 
-  void attacking() {
-    spriteCounter++;
-    if (spriteCounter <= firstAttackMotionDuration) {
-      spriteNum = 1;
-    } else if (spriteCounter <= secondAttackMotionDuration) {
-      spriteNum = 2;
-
-      resolveStrike();
-    } else if (spriteCounter > secondAttackMotionDuration) {
-      spriteNum = 1;
-      spriteCounter = 0;
-      attacking = false;
-    }
-  }
-
-
-  int getCenterX() {
-    return worldX + solidArea.x + solidArea.width / 2;
-  }
-
-  int getCenterY() {
-    return worldY + solidArea.y + solidArea.height / 2;
-  }
-
   public void setOnPath(boolean onPath) {
     this.onPath = onPath;
     if (!onPath) pathFollower = null;
@@ -364,6 +335,22 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
   /** Some enemies steer directly instead of planning a tile route. */
   public boolean isPursuingDirectly() {
     return false;
+  }
+
+  public void setAction() {
+  }
+
+  public void damageReaction() {
+  }
+
+  public void speak() {
+  }
+
+  public void checkDrop() {
+  }
+
+  @Override
+  public void move(Direction direction) {
   }
 
   protected void searchPath(int goalCol, int goalRow) {
@@ -609,6 +596,53 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
     target.knockBack = true;
   }
 
+  void attacking() {
+    spriteCounter++;
+    if (spriteCounter <= firstAttackMotionDuration) {
+      spriteNum = 1;
+    } else if (spriteCounter <= secondAttackMotionDuration) {
+      spriteNum = 2;
+
+      resolveStrike();
+    } else if (spriteCounter > secondAttackMotionDuration) {
+      spriteNum = 1;
+      spriteCounter = 0;
+      attacking = false;
+    }
+  }
+
+  int getCenterX() {
+    return worldX + solidArea.x + solidArea.width / 2;
+  }
+
+  int getCenterY() {
+    return worldY + solidArea.y + solidArea.height / 2;
+  }
+
+  int getLeftX() {
+    return worldX + solidArea.x;
+  }
+
+  int getRightX() {
+    return worldX + solidArea.x + solidArea.width;
+  }
+
+  int getTopY() {
+    return worldY + solidArea.y;
+  }
+
+  int getBottomY() {
+    return worldY + solidArea.y + solidArea.height;
+  }
+
+  int getXDistance(Actor target) {
+    return Math.abs(getCenterX() - target.getCenterX());
+  }
+
+  int getYDistance(Actor target) {
+    return Math.abs(getCenterY() - target.getCenterY());
+  }
+
   /** Project the attack for collision callbacks, never resize the shared body rectangle. */
   private void resolveStrike() {
     int originalX = worldX;
@@ -656,47 +690,7 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
     graphics2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
   }
 
-  int getLeftX() {
-    return worldX + solidArea.x;
-  }
-
-  int getRightX() {
-    return worldX + solidArea.x + solidArea.width;
-  }
-
-  int getTopY() {
-    return worldY + solidArea.y;
-  }
-
-  int getBottomY() {
-    return worldY + solidArea.y + solidArea.height;
-  }
-
-  int getXDistance(Actor target) {
-    return Math.abs(getCenterX() - target.getCenterX());
-  }
-
-  int getYDistance(Actor target) {
-    return Math.abs(getCenterY() - target.getCenterY());
-  }
-
   private Player getPlayer() {
     return gamePanel.getPlayer();
-  }
-
-  public void setAction() {
-  }
-
-  public void damageReaction() {
-  }
-
-  public void speak() {
-  }
-
-  public void checkDrop() {
-  }
-
-  @Override
-  public void move(Direction direction) {
   }
 }
