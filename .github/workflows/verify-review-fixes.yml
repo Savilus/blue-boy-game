@@ -7,15 +7,28 @@ permissions:
   contents: read
 jobs:
   gradle:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
       - name: Build, test and measure line coverage
-        run: ./gradlew clean build jacocoTestReport
+        shell: bash
+        run: ./gradlew clean build jacocoTestReport 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+      - name: Diagnose failures
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as xml
+          from pathlib import Path
+          log = Path(os.environ['RUNNER_TEMP'])/'gradle.log'
+          if log.exists(): print('::error::' + log.read_text()[-6000:].strip().replace('\n','%0A'))
+          for path in Path('build/test-results/test').glob('TEST-*.xml'):
+              for err in xml.parse(path).iter('failure'):
+                  print('::error::'+str(err.text)[:1600].replace('\n','%0A')); break
+          PY
       - name: Report results
         run: |
           python3 - <<'PY'
