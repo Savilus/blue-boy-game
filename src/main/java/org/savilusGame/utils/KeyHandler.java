@@ -22,6 +22,7 @@ import java.util.Objects;
 import org.savilusGame.GamePanel;
 import org.savilusGame.Sound;
 import org.savilusGame.config.DevMode;
+import org.savilusGame.entity.Player;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -154,13 +155,13 @@ public class KeyHandler implements KeyListener {
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
-        if (gamePanel.getUi().getPlayerSlotRow() != 3) {
+        if (gamePanel.getUi().getPlayerSlotRow() != Player.INVENTORY_ROWS - 1) {
           gamePanel.getUi().setPlayerSlotRow(gamePanel.getUi().getPlayerSlotRow() + 1);
           gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
-        if (gamePanel.getUi().getPlayerSlotCol() != 4) {
+        if (gamePanel.getUi().getPlayerSlotCol() != Player.INVENTORY_COLUMNS - 1) {
           gamePanel.getUi().setPlayerSlotCol(gamePanel.getUi().getPlayerSlotCol() + 1);
           gamePanel.playSE(CURSOR);
         }
@@ -183,13 +184,13 @@ public class KeyHandler implements KeyListener {
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
-        if (gamePanel.getUi().getNpcSlotRow() != 3) {
+        if (gamePanel.getUi().getNpcSlotRow() != Player.INVENTORY_ROWS - 1) {
           gamePanel.getUi().setNpcSlotRow(gamePanel.getUi().getNpcSlotRow() + 1);
           gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
-        if (gamePanel.getUi().getNpcSlotCol() != 4) {
+        if (gamePanel.getUi().getNpcSlotCol() != Player.INVENTORY_COLUMNS - 1) {
           gamePanel.getUi().setNpcSlotCol(gamePanel.getUi().getNpcSlotCol() + 1);
           gamePanel.playSE(CURSOR);
         }

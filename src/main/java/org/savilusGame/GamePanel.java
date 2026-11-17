@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.swing.*;
 
@@ -35,6 +36,7 @@ import org.savilusGame.enums.GameState;
 import org.savilusGame.environment.EnvironmentManager;
 import org.savilusGame.service.AudioService;
 import org.savilusGame.service.CollisionService;
+import org.savilusGame.service.FrameScheduler;
 import org.savilusGame.service.ItemCatalog;
 import org.savilusGame.service.PathfindingService;
 import org.savilusGame.service.RenderContext;
@@ -53,13 +55,13 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 
 @Getter
 @Setter
+@Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class GamePanel extends JPanel implements Runnable, CollisionService, PathfindingService, AudioService, TextRepository, ItemCatalog, RenderContext {
-
-  final static int ALLOWED_ITEMS = 20;
 
   // SCREEN SETTINGS
   final static int ORIGINAL_TITLE_SIZE = 16; // 16x16 tile
@@ -498,36 +500,41 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     }
   }
 
+  /**
+   * One update+render pass per frame slot. The loop waits out the rest of the slot instead of
+   * spinning, and a stall never produces a burst of catch-up frames ({@link FrameScheduler}).
+   */
   @Override
   public void run() {
-    double drawInterval = (double) 1000000000 / FPS;
-    double delta = 0;
-    long lastTime = System.nanoTime();
-    long currentTime;
-    long timer = 0;
+    FrameScheduler scheduler = new FrameScheduler(FPS);
+    long timer = System.nanoTime();
     long drawCount = 0;
 
     while (Objects.nonNull(gameThread)) {
+      update();
+      drawToTempScreen(); // draw everything to the buffered image
+      drawToScreen(); // draw the buffered image to the screen
+      drawCount++;
 
-      currentTime = System.nanoTime();
+      long now = System.nanoTime();
+      scheduler.advance(now);
 
-      delta += (currentTime - lastTime) / drawInterval;
-      timer += (currentTime - lastTime);
-      lastTime = currentTime;
-
-      if (delta >= 1) {
-        update();
-        drawToTempScreen(); // draw everything to the buffered image
-        drawToScreen(); // draw the buffered image to the screen
-        delta--;
-        drawCount++;
-      }
-
-      if (timer >= 1000000000) {
-        System.out.println("FPS: " + drawCount);
+      if (now - timer >= 1_000_000_000L) {
+        log.debug("FPS: {}", drawCount);
         drawCount = 0;
-        timer = 0;
+        timer = now;
       }
+
+      awaitNextFrame(scheduler);
+    }
+  }
+
+  /** Waits until the current frame is due; the loop cannot run faster than the frame rate. */
+  private static void awaitNextFrame(FrameScheduler scheduler) {
+    long idleNanos = scheduler.idleNanos(System.nanoTime());
+    while (idleNanos > 0) {
+      LockSupport.parkNanos(idleNanos);
+      idleNanos = scheduler.idleNanos(System.nanoTime());
     }
   }
 }

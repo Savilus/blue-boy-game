@@ -10,15 +10,14 @@ import static org.savilusGame.enums.GameState.PLAY_STATE;
 
 import java.awt.*;
 import java.util.Objects;
+import java.util.Optional;
 
-import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.PlayerDummy;
+import org.savilusGame.entity.monster.SkeletonLord;
 import org.savilusGame.entity.items.BlueHeart;
 import org.savilusGame.entity.items.IronDoor;
-import org.savilusGame.enums.MonsterType;
 import org.savilusGame.utils.text.TextManager;
 
 import lombok.AccessLevel;
@@ -93,28 +92,18 @@ public class CutsceneManager {
     }
 
     if (scenePhase == 2) {
-      var monsters = gamePanel.getWorld().currentMonsters();
-      for (Actor monster : monsters) {
-        if (Objects.nonNull(monster) &&
-            StringUtils.equalsIgnoreCase(monster.getName(), MonsterType.SKELETON_LORD.getName())) {
-          monster.setSleep(false);
-          gamePanel.getUi().setDialogueObject(monster);
-          scenePhase++;
-          break;
-        }
-      }
+      skeletonLord().ifPresent(monster -> {
+        monster.setSleep(false);
+        gamePanel.getUi().setDialogueObject(monster);
+        scenePhase++;
+      });
     }
 
     if (scenePhase == 3) {
-      var monsters = gamePanel.getWorld().currentMonsters();
-      for (Actor monster : monsters) {
-        if (Objects.nonNull(monster) &&
-            StringUtils.equalsIgnoreCase(monster.getName(), MonsterType.SKELETON_LORD.getName())) {
-          monster.startDialogue(monster, CUTSCENE_DIALOGUE);
-          gamePanel.getUi().drawDialogueScreen();
-          break;
-        }
-      }
+      skeletonLord().ifPresent(monster -> {
+        monster.startDialogue(monster, CUTSCENE_DIALOGUE);
+        gamePanel.getUi().drawDialogueScreen();
+      });
     }
 
     if (scenePhase == 4) {
@@ -134,6 +123,18 @@ public class CutsceneManager {
       gamePanel.stopBGM();
       gamePanel.playBGM(FINAL_BATTLE);
     }
+  }
+
+  /**
+   * The boss is identified by its type, never by its localized display name, so renaming or
+   * translating the monster cannot silently break the cutscene (the same identity rule the door
+   * and the key follow).
+   */
+  Optional<SkeletonLord> skeletonLord() {
+    return gamePanel.getWorld().currentMonsters().stream()
+        .filter(SkeletonLord.class::isInstance)
+        .map(SkeletonLord.class::cast)
+        .findFirst();
   }
 
   private void endingScene() {

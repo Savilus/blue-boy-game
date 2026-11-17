@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.savilusGame.config.GameEntityNameFactory.MAIN_MAP;
+import static org.savilusGame.enums.GameState.CHARACTER_STATE;
 import static org.savilusGame.enums.GameState.PLAY_STATE;
 import static org.savilusGame.enums.GameState.TITLE_STATE;
+import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
 
 import java.awt.event.KeyEvent;
 
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.savilusGame.GamePanel;
 import org.savilusGame.config.DevMode;
+import org.savilusGame.entity.Player;
 
 /** Release-package input rules: cheats need {@link DevMode}, quitting uses the single exit path. */
 class KeyHandlerTest {
@@ -93,5 +96,25 @@ class KeyHandlerTest {
     panel.getKeyHandler().keyPressed(pressed(KeyEvent.VK_ENTER));
 
     assertEquals(1, panel.quitRequests(), "Quit must be routed through GamePanel.quitGame()");
+  }
+
+  @Test
+  @DisplayName("the inventory cursor stops at the last slot of the grid the UI draws")
+  void inventoryCursorStopsAtTheLastSlot() {
+    panel.setGameState(CHARACTER_STATE);
+    panel.getUi().setSubState(PLAYER_INVENTORY);
+    panel.getUi().setPlayerSlotCol(0);
+    panel.getUi().setPlayerSlotRow(0);
+    KeyHandler input = new KeyHandler(panel, new DevMode(false));
+
+    for (int press = 0; press < Player.INVENTORY_COLUMNS + 3; press++) {
+      input.keyPressed(pressed(KeyEvent.VK_D));
+    }
+    for (int press = 0; press < Player.INVENTORY_ROWS + 3; press++) {
+      input.keyPressed(pressed(KeyEvent.VK_S));
+    }
+
+    assertEquals(Player.INVENTORY_COLUMNS - 1, panel.getUi().getPlayerSlotCol());
+    assertEquals(Player.INVENTORY_ROWS - 1, panel.getUi().getPlayerSlotRow());
   }
 }

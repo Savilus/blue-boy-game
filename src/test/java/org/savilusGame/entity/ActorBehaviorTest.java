@@ -1,6 +1,7 @@
 package org.savilusGame.entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -163,5 +164,56 @@ class ActorBehaviorTest {
     assertTrue(panel.getPlayer().canObtainItem(heart));
     assertTrue(panel.getPlayer().getInventory().stream()
         .anyMatch(item -> item.getId().equals(GameObject.BLUE_HEART.name())));
+  }
+
+  @Test
+  @DisplayName("knockback uses one shared step: fixed duration, then the normal speed")
+  void knockBackUsesTheSharedStep() {
+    TestActor attacker = new TestActor(panel);
+    attacker.setDirection(Direction.LEFT);
+
+    TestActor victim = new TestActor(panel);
+    victim.setWorldPosition(500, 500);
+    victim.setDefaultSpeed(4);
+    victim.setSpeed(4);
+    victim.setKnockBack(victim, attacker, 1);
+
+    assertTrue(victim.isKnockBack());
+    assertEquals(Direction.LEFT, victim.getKnockBackDirection());
+    assertEquals(5, victim.getSpeed(), "the hit adds the knockback power to the speed");
+
+    for (int tick = 0; tick < Actor.KNOCK_BACK_TIME; tick++) {
+      victim.setCollisionOn(false);
+      victim.updateKnockBack();
+    }
+
+    assertFalse(victim.isKnockBack(), "the knockback must end after KNOCK_BACK_TIME ticks");
+    assertEquals(4, victim.getSpeed(), "the normal speed must come back");
+    assertEquals(0, victim.getKnockBackCounter());
+    assertEquals(500 - Actor.KNOCK_BACK_TIME * 5, victim.getWorldX());
+
+    victim.updateKnockBack();
+    assertEquals(500 - Actor.KNOCK_BACK_TIME * 5, victim.getWorldX(),
+        "a finished knockback must not move the actor any further");
+  }
+
+  @Test
+  @DisplayName("a collision ends the knockback immediately and restores the normal speed")
+  void collisionEndsKnockBack() {
+    TestActor attacker = new TestActor(panel);
+    attacker.setDirection(Direction.DOWN);
+
+    TestActor victim = new TestActor(panel);
+    victim.setWorldPosition(300, 400);
+    victim.setDefaultSpeed(4);
+    victim.setSpeed(4);
+    victim.setKnockBack(victim, attacker, 2);
+
+    victim.setCollisionOn(true);
+    victim.updateKnockBack();
+
+    assertFalse(victim.isKnockBack());
+    assertEquals(4, victim.getSpeed());
+    assertEquals(400, victim.getWorldY(), "a blocked knockback must not move the actor");
   }
 }

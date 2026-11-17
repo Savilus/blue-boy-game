@@ -32,6 +32,7 @@ import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.Player;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.service.DialogueSpeaker;
 import org.savilusGame.utils.SpriteLoader;
@@ -653,7 +654,7 @@ public class UI {
       }
       slotX += slotSize;
 
-      if (inventoryItem == 4 || inventoryItem == 9 || inventoryItem == 14) {
+      if (inventoryItem % Player.INVENTORY_COLUMNS == Player.INVENTORY_COLUMNS - 1) {
         slotX = slotXStart;
         slotY += slotSize;
       }
@@ -690,7 +691,7 @@ public class UI {
   }
 
   public int getItemIndexFromInventory(int slotCol, int slotRow) {
-    return slotCol + (slotRow * 5);
+    return slotCol + (slotRow * Player.INVENTORY_COLUMNS);
   }
 
   private void optionsFullScreenNotification(int frameX, int frameY) {

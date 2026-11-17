@@ -57,7 +57,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   private static final int INVINCIBLE_TIME = 40;
   private static final int SHOOT_INTERVAL = 50;
   private static final int OFF_BALANCE_TIME = 60;
-  private static final int KNOCK_BACK_TIME = 5;
+  static final int KNOCK_BACK_TIME = 5;
   private static final int SPRITE_CHANGE_TIME = 24;
 
   final GamePanel gamePanel;
@@ -155,20 +155,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
     checkCollision();
     if (!sleep) {
       if (knockBack) {
-        if (!collisionOn) {
-          switch (knockBackDirection) {
-            case UP -> worldY -= speed;
-            case DOWN -> worldY += speed;
-            case LEFT -> worldX -= speed;
-            case RIGHT -> worldX += speed;
-          }
-        }
-        knockBackCounter++;
-        if (knockBackCounter == KNOCK_BACK_TIME || collisionOn) {
-          knockBackCounter = 0;
-          knockBack = false;
-          speed = defaultSpeed;
-        }
+        updateKnockBack();
       } else if (attacking) {
         attacking();
       } else {
@@ -460,16 +447,57 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   }
 
   protected void checkCollision() {
-    collisionOn = false;
-    gamePanel.getCollisionDetector().checkTile(this);
-    gamePanel.getCollisionDetector().checkObject(this, false);
-    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentNpc());
-    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
-    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentInteractiveTiles());
+    resolveWorldCollisions(false);
     boolean contactPlayer = gamePanel.getCollisionDetector().checkPlayer(this);
 
     if (monster && contactPlayer && !gamePanel.getPlayer().invincible) {
       damagePlayer(attack);
+    }
+  }
+
+  /**
+   * Collision checks shared by normal movement and knockback: tiles, world objects, NPCs, monsters
+   * and interactive tiles. Contact with the player (and the damage it causes) is added by
+   * {@link #checkCollision()} for the non-player actors only.
+   *
+   * @param forPlayer whether the caller is the player (affects the object index the detector reports)
+   */
+  protected void resolveWorldCollisions(boolean forPlayer) {
+    collisionOn = false;
+    gamePanel.getCollisionDetector().checkTile(this);
+    gamePanel.getCollisionDetector().checkObject(this, forPlayer);
+    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentNpc());
+    gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
+    var interactiveTiles = gamePanel.getWorld().currentInteractiveTiles();
+    if (Objects.nonNull(interactiveTiles)) {
+      gamePanel.getCollisionDetector().checkEntity(this, interactiveTiles);
+    }
+  }
+
+  /**
+   * One knockback tick, shared by every actor so the player and the monsters cannot drift apart:
+   * drift one step in the hit direction unless blocked, and end the knockback after
+   * {@link #KNOCK_BACK_TIME} ticks or on the first collision, restoring the normal speed.
+   * <p>The caller resolves collisions first, because the player and the other actors do that
+   * differently ({@link #resolveWorldCollisions(boolean)}).
+   */
+  protected void updateKnockBack() {
+    if (!knockBack) {
+      return;
+    }
+    if (!collisionOn) {
+      switch (knockBackDirection) {
+        case UP -> worldY -= speed;
+        case DOWN -> worldY += speed;
+        case LEFT -> worldX -= speed;
+        case RIGHT -> worldX += speed;
+      }
+    }
+    knockBackCounter++;
+    if (knockBackCounter >= KNOCK_BACK_TIME || collisionOn) {
+      knockBackCounter = 0;
+      knockBack = false;
+      speed = defaultSpeed;
     }
   }
 

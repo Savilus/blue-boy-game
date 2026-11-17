@@ -196,6 +196,25 @@ Quitting via the window's close button was not exercised manually. The finding s
 
 This already diverged once (`Player` uses literal `5`; base uses the constant; knockback direction handling differs subtly). **Fix:** delete the `Player` override path and let the base-class knockback run (it already calls `checkTile` + entity checks — the extra `checkObject` in the player path can be lifted into the base).
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** the knockback step now exists
+once, on `Actor`: `updateKnockBack()` (drift one step in the hit direction unless blocked, end after
+`KNOCK_BACK_TIME` ticks or on the first collision, restore the normal speed) and `resolveWorldCollisions(boolean
+forPlayer)` (tiles, world objects, NPCs, monsters, interactive tiles). `Actor.update()` runs `checkCollision()` — which
+now delegates to `resolveWorldCollisions(false)` and keeps the player-contact damage — and then `updateKnockBack()`;
+`Player.update()` runs `resolveWorldCollisions(true)` and the same `updateKnockBack()`. The literal `5` in the player
+path is gone: `KNOCK_BACK_TIME` is the only duration. Behaviour is unchanged (same collision order, the player still
+resolves object collisions with `forPlayer = true` so the reported index stays the player's, knockback still ends on
+the first collision; `==` became `>=` only to stay correct if the counter is ever advanced twice). The null guard on
+`currentInteractiveTiles()` is kept, because the removed player path had it.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `entity/Actor.java`, `entity/Player.java`,
+`ActorBehaviorTest.java` (2 new tests: `knockBackUsesTheSharedStep`, `collisionEndsKnockBack`).
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment (no JDK, no Gradle
+distribution, no Maven Central access — only GitHub/PyPI hosts are reachable). Structural syntax check of all
+118 `.java` files with a Java grammar parser passed (118/118 parsed); the tests below still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until then.
+
 <a id="finding-16"></a>
 
 ### 7. `door.name = GameObject.DOOR.name()` only works by accident — 🔴 OPEN
@@ -205,6 +224,24 @@ This already diverged once (`Player` uses literal `5`; base uses the constant; k
 
 Every other entity uses the localized `getName()`; `Door` uses the enum constant name (`"DOOR"`). The Key-vs-Door check passes only because `getObjectFromName` compares with `equalsIgnoreCase`. Any tightening of identity handling ([FIXED 8](#finding-9)) breaks Key→Door silently. **Fix:** part of [FIXED 8](#finding-9) — compare stable ids everywhere.
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `Door` already takes its
+display name from the localized text (`TextManager.getItemName(GameObject.DOOR.getTextKey())`), and every identity
+decision about it is made on the stable `GameObject.DOOR` value, so the key no longer depends on any name. The one
+remaining identity-by-display-string was in `CutsceneManager`: the boss was located by comparing the localized
+`Actor.getName()` with `MonsterType.SKELETON_LORD.getName()` (two copies, one per scene phase). Both now use a single
+`skeletonLord()` lookup that filters on the `SkeletonLord` type, so a translated or renamed boss still drives the
+cutscene and a minion that happens to be called "Skeleton Lord" is not promoted into it.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `utils/CutsceneManager.java` (single `skeletonLord()`
+lookup, name comparison and the `MonsterType`/`StringUtils` imports removed), `ObjectDetectorTest.java`
+(`keyOpensTheDoorEvenWhenTheDoorIsRenamed`), new `CutsceneManagerTest` (type wins over display name in both
+directions, and a map without the boss yields no boss).
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment (no JDK, no Gradle
+distribution, no Maven Central access — only GitHub/PyPI hosts are reachable). Structural syntax check of all
+118 `.java` files with a Java grammar parser passed (118/118 parsed); the tests below still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until then.
+
 <a id="finding-17"></a>
 
 ### 8. Small but real: `getImage()` loads `BOY_UP1` twice — 🔴 OPEN
@@ -212,12 +249,42 @@ Every other entity uses the localized `getName()`; `Door` uses the enum constant
 
 **Where:** `Player.java:getImage()` — `up1 = setup(BOY_UP1, ...)` appears twice; harmless, but signals the asset paths are maintained by hand (see [OPEN 41](#finding-50)). Also `MerchantNPC` assigns `up*` the down-frames (deliberate), and `GameEntity.setImage`-style duplication across `AssetSetter`/`Player`/`NPC` constructors is heavy copy-paste.
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** the duplicate `up1` assignment
+is deleted, so `getImage()` loads each of the eight walking sprites exactly once. The removed line was behaviour
+neutral (it loaded the same asset over the same field), so the new test guards the contract that the line obscured —
+all eight sprites are loaded, are tile sized and are all different — rather than the line itself.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `entity/Player.java` (`getImage()`), new
+`PlayerSpriteTest` (`everyWalkingSpriteIsLoaded`, `eachDirectionAndFrameUsesItsOwnImage`).
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment (no JDK, no Gradle
+distribution, no Maven Central access — only GitHub/PyPI hosts are reachable). Structural syntax check of all
+118 `.java` files with a Java grammar parser passed (118/118 parsed); the tests below still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until then.
+
 <a id="finding-18"></a>
 
 ### 9. Inventory capacity has two sources of truth — 🔴 OPEN
 **Severity:** `P3`
 
 `WoodShield`/`BlueShield` and friends: `item.setAmount(...)` on fresh instances during load is fine, but `GameEntity.maxInventorySize = 20` duplicates `GamePanel.ALLOWED_ITEMS = 20` (unused, `GamePanel.java:53`). Keep one authoritative inventory limit.
+
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `Player` owns the inventory
+geometry: `INVENTORY_COLUMNS = 5`, `INVENTORY_ROWS = 4` and `MAX_INVENTORY_SIZE = INVENTORY_COLUMNS *
+INVENTORY_ROWS`. `GamePanel.ALLOWED_ITEMS` is deleted (it had no readers at all) and nothing else keeps a second
+limit. `KeyHandler` navigation stops at `Player.INVENTORY_ROWS - 1` / `Player.INVENTORY_COLUMNS - 1` instead of the
+literals `3`/`4`, and `UI` draws its row breaks and computes the slot index from `INVENTORY_COLUMNS` instead of the
+literals `4`/`9`/`14`/`5`. Capacity, layout and cursor arithmetic can therefore no longer drift apart.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `entity/Player.java`, `GamePanel.java`, `UI.java`,
+`utils/KeyHandler.java`; tests `PlayerInventoryCapacityTest` (the limit is the grid size, exactly
+`MAX_INVENTORY_SIZE` items are accepted and the next one is refused), `UIInventoryGridTest` (slot-to-index mapping,
+including the last slot) and `KeyHandlerTest.inventoryCursorStopsAtTheLastSlot`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment (no JDK, no Gradle
+distribution, no Maven Central access — only GitHub/PyPI hosts are reachable). Structural syntax check of all
+118 `.java` files with a Java grammar parser passed (118/118 parsed); the tests below still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until then.
 
 <a id="finding-19"></a>
 
@@ -247,6 +314,25 @@ if (delta >= 1) {
 }
 ```
 (Or adopt the standard "render every frame, update at fixed step" shape with `System.currentTimeMillis` deadline scheduling.) Also stop printing `"FPS: " + drawCount` to stdout every second (`GamePanel.java:396`) — use the logger at debug level or an on-screen perf overlay.
+
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** the loop now uses fixed-slot
+deadline scheduling from `service/FrameScheduler`: one update+render pass per slot, then `LockSupport.parkNanos`
+until the next slot is due, so an idle loop sleeps instead of spinning. The unclamped `delta` accumulator is gone;
+a loop that fell behind a whole slot restarts its deadline from the current time, which is the clamp the finding
+asked for — missed frames are dropped rather than replayed as a burst of ticks. The per-second `System.out.println`
+is now `log.debug("FPS: {}", drawCount)`, so it is silent unless debug logging is enabled. Behaviour note: a stall
+previously made the game catch up with several ticks at once; it now continues at 60 Hz without the surge.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — new `service/FrameScheduler.java`, `GamePanel.java`
+(`run()`, new `awaitNextFrame`, `@Slf4j`); new `FrameSchedulerTest` (first frame immediate, one-sixtieth-of-a-second
+slots, waiting for the rest of a slot, no burst after a stall, a slightly late frame keeps the rhythm, non-positive
+frame rate rejected). The loop body itself is not unit-testable without running the game; the pacing arithmetic it
+delegates to is covered.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment (no JDK, no Gradle
+distribution, no Maven Central access — only GitHub/PyPI hosts are reachable). Structural syntax check of all
+118 `.java` files with a Java grammar parser passed (118/118 parsed); the tests below still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until then.
 
 <a id="finding-20"></a>
 
