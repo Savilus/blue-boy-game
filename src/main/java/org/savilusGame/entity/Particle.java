@@ -2,7 +2,8 @@ package org.savilusGame.entity;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Graphics2D;
 
 import org.savilusGame.GamePanel;
 

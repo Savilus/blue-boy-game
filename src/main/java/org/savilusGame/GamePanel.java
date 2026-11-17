@@ -24,7 +24,6 @@ import org.savilusGame.config.Config;
 import org.savilusGame.config.DevMode;
 import org.savilusGame.data.SaveLoad;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.GameEntityFactory;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.Player;
@@ -74,7 +73,7 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
   final WorldRenderer worldRenderer = new WorldRenderer();
   final TileManager tileManager;
   final World world;
-  final DevMode devMode = DevMode.fromConfig();
+  final DevMode devMode;
   final KeyHandler keyHandler;
   Sound music = new Sound();
   Sound soundEffect = new Sound();
@@ -106,6 +105,11 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
   boolean fullScreenOn;
 
   public GamePanel() {
+    this(DevMode.fromConfig());
+  }
+
+  public GamePanel(DevMode devMode) {
+    this.devMode = Objects.requireNonNull(devMode);
     tileManager = new TileManager(this);
     world = new World(tileManager, MAIN_MAP);
     keyHandler = new KeyHandler(this, devMode);

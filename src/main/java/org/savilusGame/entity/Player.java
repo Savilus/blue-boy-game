@@ -60,6 +60,7 @@ import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.projectile.Fireball;
 import org.savilusGame.entity.shield.WoodShield;
 import org.savilusGame.entity.weapon.NormalSword;
+import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.KeyHandler;
 import org.savilusGame.utils.text.TextManager;
@@ -93,6 +94,7 @@ public class Player extends Actor {
   static final int SHOOT_RATE = 50;
   /** The single inventory limit: exactly the slots the grid can show. */
   static final int MAX_INVENTORY_SIZE = INVENTORY_COLUMNS * INVENTORY_ROWS;
+  static final int DEVELOPER_STACK_COUNT = 50;
   static final int NEXT_LEVEL_EXP_STEP = 5;
   static final int LEVEL_UP_LIFE_BONUS = 2;
 
@@ -183,6 +185,8 @@ public class Player extends Actor {
 
           lightUpdated = true;
         }
+        case PASSIVE -> {
+        }
       }
     }
   }
@@ -233,6 +237,9 @@ public class Player extends Actor {
     inventory.clear();
     inventory.add(currentWeapon);
     inventory.add(currentShield);
+    if (gamePanel.getDevMode().enabled()) {
+      addDeveloperStartingItems();
+    }
   }
 
   public int getDefense() {
@@ -434,6 +441,19 @@ public class Player extends Actor {
     }
   }
 
+  /**
+   * Adds experience and resolves every level the reward pays for. Experience beyond the
+   * current requirement is kept for the next level instead of being discarded, and a single
+   * large reward can therefore grant several levels.
+   */
+  public void gainExperience(int amount) {
+    if (amount <= 0) {
+      return;
+    }
+    exp += amount;
+    checkLevelUp();
+  }
+
   @Override
   public void draw(Graphics2D graphic2d) {
     int temporaryScreenX = screenX;
@@ -531,19 +551,6 @@ public class Player extends Actor {
     }
   }
 
-  /**
-   * Adds experience and resolves every level the reward pays for. Experience beyond the
-   * current requirement is kept for the next level instead of being discarded, and a single
-   * large reward can therefore grant several levels.
-   */
-  void gainExperience(int amount) {
-    if (amount <= 0) {
-      return;
-    }
-    exp += amount;
-    checkLevelUp();
-  }
-
   void detectMonsterContact(int monsterIndex) {
     Actor monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
     if (monster != null) {
@@ -575,6 +582,29 @@ public class Player extends Actor {
     guardDown = sprites.get(BOY_GUARD_DOWN, TILE_SIZE, TILE_SIZE);
     guardLeft = sprites.get(BOY_GUARD_LEFT, TILE_SIZE, TILE_SIZE);
     guardRight = sprites.get(BOY_GUARD_RIGHT, TILE_SIZE, TILE_SIZE);
+  }
+
+  private void addDeveloperStartingItems() {
+    for (GameObject gameObject : GameObject.values()) {
+      if (gameObject == GameObject.BOOTS) {
+        continue;
+      }
+
+      boolean alreadyInInventory = inventory.stream()
+          .anyMatch(item -> item.getId().equals(gameObject.name()));
+      if (alreadyInInventory) {
+        continue;
+      }
+
+      Item item = gamePanel.getGameEntityFactory().getItem(gameObject.name());
+      if (item == null || item.getType() == WorldGameTypes.PICK_UP) {
+        continue;
+      }
+      if (item.isStackable()) {
+        item.setStackCount(DEVELOPER_STACK_COUNT);
+      }
+      inventory.add(item);
+    }
   }
 
   private void pickUpObject(int objectIndex) {

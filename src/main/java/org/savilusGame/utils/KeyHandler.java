@@ -46,6 +46,47 @@ public class KeyHandler implements KeyListener {
     this.devMode = Objects.requireNonNull(devMode);
   }
 
+  @Override
+  public void keyTyped(KeyEvent keyEvent) {
+  }
+
+  @Override
+  public void keyPressed(KeyEvent keyEvent) {
+    if (devMode.enabled() && gamePanel.getGameState() == PLAY_STATE && isPlusKey(keyEvent)) {
+      Player player = gamePanel.getPlayer();
+      player.gainExperience(player.getNextLevelExp() - player.getExp());
+      return;
+    }
+
+    int code = keyEvent.getKeyCode();
+    switch (gamePanel.getGameState()) {
+      case PLAY_STATE -> playState(code);
+      case PAUSE_STATE -> pauseState(code);
+      case DIALOG_STATE,
+           CUTSCENE_STATE -> dialogState(code);
+      case TITLE_STATE -> titleState(code);
+      case CHARACTER_STATE -> characterState(code);
+      case OPTIONS_STATE -> optionState(code);
+      case GAME_OVER_STATE -> gameOverState(code);
+      case TRADE_STATE -> tradeState(code);
+      case MAP_STATE -> mapState(code);
+    }
+  }
+
+  @Override
+  public void keyReleased(KeyEvent keyEvent) {
+    int code = keyEvent.getKeyCode();
+    switch (code) {
+      case KeyEvent.VK_W -> upPressed = false;
+      case KeyEvent.VK_S -> downPressed = false;
+      case KeyEvent.VK_A -> leftPressed = false;
+      case KeyEvent.VK_D -> rightPressed = false;
+      case KeyEvent.VK_F -> shotKeyPressed = false;
+      case KeyEvent.VK_SPACE -> spacePressed = false;
+      case KeyEvent.VK_ENTER -> enterPressed = false;
+    }
+  }
+
   private void titleState(int code) {
     switch (code) {
       case KeyEvent.VK_W, KeyEvent.VK_UP -> {
@@ -333,39 +374,9 @@ public class KeyHandler implements KeyListener {
     gamePanel.getUi().setCommandNum(gamePanel.getUi().getCommandNum() + 1);
   }
 
-  @Override
-  public void keyTyped(KeyEvent keyEvent) {
-  }
-
-  @Override
-  public void keyPressed(KeyEvent keyEvent) {
-    int code = keyEvent.getKeyCode();
-
-    switch (gamePanel.getGameState()) {
-      case PLAY_STATE -> playState(code);
-      case PAUSE_STATE -> pauseState(code);
-      case DIALOG_STATE,
-           CUTSCENE_STATE -> dialogState(code);
-      case TITLE_STATE -> titleState(code);
-      case CHARACTER_STATE -> characterState(code);
-      case OPTIONS_STATE -> optionState(code);
-      case GAME_OVER_STATE -> gameOverState(code);
-      case TRADE_STATE -> tradeState(code);
-      case MAP_STATE -> mapState(code);
-    }
-  }
-
-  @Override
-  public void keyReleased(KeyEvent e) {
-    int code = e.getKeyCode();
-    switch (code) {
-      case KeyEvent.VK_W -> upPressed = false;
-      case KeyEvent.VK_S -> downPressed = false;
-      case KeyEvent.VK_A -> leftPressed = false;
-      case KeyEvent.VK_D -> rightPressed = false;
-      case KeyEvent.VK_F -> shotKeyPressed = false;
-      case KeyEvent.VK_SPACE -> spacePressed = false;
-      case KeyEvent.VK_ENTER -> enterPressed = false;
-    }
+  private boolean isPlusKey(KeyEvent keyEvent) {
+    return keyEvent.getKeyCode() == KeyEvent.VK_ADD
+        || keyEvent.getKeyCode() == KeyEvent.VK_PLUS
+        || (keyEvent.getKeyCode() == KeyEvent.VK_EQUALS && keyEvent.isShiftDown());
   }
 }

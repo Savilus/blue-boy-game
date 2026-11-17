@@ -69,12 +69,19 @@ legacy exceptions in the tree, the exception is documented in
 
 ## 5. Language & Style Conventions
 
-* **Lombok is a convenience, not a hiding place.** Prefer it for appropriate
-  boilerplate, but choose annotations deliberately. Use `@Data`/`@Value` for
-  suitable data carriers, not as a requirement for services or domain objects.
-  Do not generate setters or equality methods that expose mutable internals
-  or bypass invariants; class cohesion, not annotation choice, determines
-  whether a class needs splitting.
+* **Use Lombok to remove boilerplate by default.** Do not hand-write routine
+  getters, setters, constructors, `equals`/`hashCode`, `toString`, builders or
+  logger fields when an appropriate Lombok annotation expresses the intended
+  API. Choose from annotations such as `@Getter`, `@Setter`,
+  `@RequiredArgsConstructor`, `@AllArgsConstructor`, `@NoArgsConstructor`,
+  `@EqualsAndHashCode`, `@ToString`, `@Builder` and `@Slf4j` as appropriate;
+  prefer the narrowest annotation that fits. Use `@Data`/`@Value` for suitable
+  data carriers, not as a requirement for services or domain objects. Do not
+  generate setters that expose mutable internals or bypass invariants, or
+  equality/string methods that leak state or have unsuitable semantics.
+  Keep handwritten code only where behavior, validation, framework
+  requirements or API constraints make generated code inappropriate. Class
+  cohesion, not annotation choice, determines whether a class needs splitting.
 * Enums carry stable vocabularies (`GameObject`, `Direction`, `MapName`);
   display text lives in `texts/*.json|yaml` and is read through
   `TextManager`. **No display strings in code.** The `GameObject` `textKey`
@@ -92,6 +99,10 @@ legacy exceptions in the tree, the exception is documented in
 * Order methods in each class by visibility: `public`, `protected`,
   package-private, then `private`. In every iteration, check the code being
   changed for compliance with this method order and update it when needed.
+* Remove all unused imports from every file changed. After a change, check
+  whether it leaves methods unused; remove methods that are no longer needed,
+  unless they are part of a public/framework API or are invoked indirectly
+  (for example by reflection, serialization, or callbacks).
 
 ## 6. Documentation & Status Tracking
 

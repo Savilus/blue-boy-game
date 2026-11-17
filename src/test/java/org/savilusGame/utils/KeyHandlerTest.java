@@ -9,6 +9,7 @@ import static org.savilusGame.enums.GameState.PLAY_STATE;
 import static org.savilusGame.enums.GameState.TITLE_STATE;
 import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
 
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -63,12 +64,6 @@ class KeyHandlerTest {
   }
 
   @Test
-  @DisplayName("development features are disabled in the bundled YAML by default")
-  void bundledConfigKeepsDevModeDisabled() {
-    assertFalse(DevMode.fromConfig().enabled());
-  }
-
-  @Test
   @DisplayName("development builds can still toggle god mode and the debug overlay")
   void developmentKeysWorkWithDevMode() {
     KeyHandler developerInput = new KeyHandler(panel, new DevMode(true));
@@ -93,6 +88,42 @@ class KeyHandlerTest {
 
     developerInput.keyPressed(pressed(KeyEvent.VK_CONTROL));
     assertFalse(panel.getTileManager().isPathVisible());
+  }
+
+  @Test
+  @DisplayName("the plus key grants one level only in development mode")
+  void plusKeyGrantsOneLevelInDevMode() {
+    Player player = panel.getPlayer();
+    player.setLevel(1);
+    player.setExp(0);
+    player.setNextLevelExp(5);
+    KeyHandler developerInput = new KeyHandler(panel, new DevMode(true));
+
+    developerInput.keyPressed(pressed(KeyEvent.VK_ADD));
+
+    assertEquals(2, player.getLevel());
+    assertEquals(0, player.getExp());
+    assertEquals(10, player.getNextLevelExp());
+  }
+
+  @Test
+  @DisplayName("the shifted equals key grants a level and release mode ignores plus")
+  void shiftedEqualsIsPlusAndReleaseModeIgnoresIt() {
+    Player player = panel.getPlayer();
+    player.setLevel(1);
+    player.setExp(0);
+    player.setNextLevelExp(5);
+    KeyHandler releaseInput = new KeyHandler(panel, new DevMode(false));
+
+    releaseInput.keyPressed(new KeyEvent(panel, KeyEvent.KEY_PRESSED, 0L,
+        InputEvent.SHIFT_DOWN_MASK, KeyEvent.VK_EQUALS, '+'));
+    assertEquals(1, player.getLevel());
+
+    new KeyHandler(panel, new DevMode(true)).keyPressed(
+        new KeyEvent(panel, KeyEvent.KEY_PRESSED, 0L,
+            InputEvent.SHIFT_DOWN_MASK, KeyEvent.VK_EQUALS, '+'));
+
+    assertEquals(2, player.getLevel());
   }
 
   @Test

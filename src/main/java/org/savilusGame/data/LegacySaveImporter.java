@@ -19,6 +19,8 @@ import org.savilusGame.data.SaveGame.ObjectState;
 import org.savilusGame.data.SaveGame.PlayerState;
 import org.savilusGame.data.SaveGame.TileKind;
 import org.savilusGame.data.SaveGame.TileState;
+import org.savilusGame.entity.InteractiveObject;
+import org.savilusGame.entity.item.Item;
 
 /** Reads the previous local save format once; no binary files are written. */
 final class LegacySaveImporter {
@@ -75,7 +77,7 @@ final class LegacySaveImporter {
           if (name == null || xs.get(i) == null || ys.get(i) == null || opened.get(i) == null) {
             throw new InvalidObjectException("Invalid legacy object on " + map);
           }
-          var object = panel.getGameEntityFactory().getWorldObject(name);
+          InteractiveObject object = panel.getGameEntityFactory().getWorldObject(name);
           if (object != null) {
             objects.add(new ObjectState(object.getGameObject().name(), xs.get(i), ys.get(i),
                 opened.get(i), loot.get(i) == null ? null : itemId(panel, loot.get(i))));
@@ -125,7 +127,7 @@ final class LegacySaveImporter {
   }
 
   private static String itemId(GamePanel panel, String name) {
-    var item = panel.getGameEntityFactory().getItem(name);
+    Item item = panel.getGameEntityFactory().getItem(name);
     return item == null ? name : item.getId();
   }
 

@@ -57,6 +57,8 @@ this map. Each trail shows that enemy’s remaining waypoints; a boss steering
 directly shows its heading to the player instead. Wandering enemies, dead
 enemies and NPCs have no trail. **R** reloads the terrain; the minimap,
 full map and pursuit routes use the new layout.
+Press **+** while playing to grant the player one level. New games start with
+every inventory item; stackable items have 50 units each.
 
 The game reads all
 bundled texts, images, fonts, sounds and tile maps from the classpath, so it
