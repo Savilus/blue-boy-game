@@ -12,7 +12,7 @@ import org.savilusGame.entity.items.Door;
 import org.savilusGame.entity.items.RedPotion;
 import org.savilusGame.entity.monster.GreenSlime;
 
-/** Branch-only graphical smoke (not a headless JUnit test). Sound hardware is not under test. */
+/** Drives the real game under Xvfb, independently of headless JUnit. Sound hardware is not under test. */
 class DesktopCheck {
   public static void main(String[] args) throws Exception {
     Thread.setDefaultUncaughtExceptionHandler((thread, error) -> { error.printStackTrace(); System.exit(1); });
@@ -36,7 +36,7 @@ class DesktopCheck {
       String map = world.getCurrentMap();
       var west = new GreenSlime(panel); west.setWorldPosition(18 * TILE_SIZE, 21 * TILE_SIZE); west.setOnPath(true);
       var east = new GreenSlime(panel); east.setWorldPosition(28 * TILE_SIZE, 21 * TILE_SIZE); east.setOnPath(true);
-      // Keep the camera and both sampled cells fixed while capturing the walkability overlays.
+      // Keep the camera and both sampled cells fixed while capturing the chase overlays.
       // Restore normal speeds afterwards and verify that both actors actually advance.
       west.setSpeed(0); east.setSpeed(0);
       world.setMonsters(Map.of(map, List.of(west, east)));

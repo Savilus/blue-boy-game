@@ -1,8 +1,14 @@
-# Branch-only verification; does not install repository-wide CI or alter merge policy.
-name: Verify review fixes
+name: Build and gameplay checks
 on:
-  push:
-    branches: [arena/ada59f4e-blue-boy-game]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - '*.gradle.kts'
+      - '.github/verification/**'
+      - '.github/workflows/verify-review-fixes.yml'
 permissions:
   contents: read
 jobs:
@@ -15,20 +21,7 @@ jobs:
           distribution: temurin
           java-version: '25'
       - name: Build, test and measure line coverage
-        shell: bash
-        run: ./gradlew clean build jacocoTestReport 2>&1 | tee "$RUNNER_TEMP/gradle.log"
-      - name: Diagnose failures
-        if: failure()
-        run: |
-          python3 - <<'PY'
-          import os, xml.etree.ElementTree as xml
-          from pathlib import Path
-          log = Path(os.environ['RUNNER_TEMP'])/'gradle.log'
-          if log.exists(): print('::error::' + log.read_text()[-6000:].strip().replace('\n','%0A'))
-          for path in Path('build/test-results/test').glob('TEST-*.xml'):
-              for err in xml.parse(path).iter('failure'):
-                  print('::error::'+str(err.text)[:1600].replace('\n','%0A')); break
-          PY
+        run: ./gradlew clean build jacocoTestReport
       - name: Report results
         run: |
           python3 - <<'PY'
@@ -38,13 +31,6 @@ jobs:
           counts = {key: sum(int(suite.get(key, 0)) for suite in suites) for key in ('tests','failures','errors','skipped')}
           counter = xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').find("counter[@type='LINE']")
           print(f'::notice::JUnit: {counts}; JaCoCo lines: {counter.attrib}')
-          seams = {'PathFinder.java','PathFollower.java','Node.java','WorldNavigation.java','SpriteCache.java','WorldRenderer.java','UiFonts.java','CollisionDetector.java'}
-          covered = missed = 0
-          for source in xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').iter('sourcefile'):
-              if source.get('name') in seams:
-                  lines = source.find("counter[@type='LINE']")
-                  covered += int(lines.get('covered')); missed += int(lines.get('missed'))
-          print(f'::notice::New/rewritten seams {sorted(seams)}: {covered} covered, {missed} missed.')
           PY
       - name: Exercise the live Swing window
         shell: bash
@@ -70,33 +56,3 @@ jobs:
         with:
           name: chase-frames
           path: build/desktop-check/*.png
-
-      - name: Attach compact frame previews to the verification check
-        if: always() && hashFiles('build/desktop-check/*.png') != ''
-        shell: bash
-        run: |
-          cat > "$RUNNER_TEMP/Preview.java" <<'JAVA'
-          import java.awt.image.BufferedImage;
-          import java.io.File;
-          import java.io.ByteArrayOutputStream;
-          import java.util.Base64;
-          import javax.imageio.ImageIO;
-          class Preview {
-            public static void main(String[] args) throws Exception {
-              for (String path : args) {
-                var file = new File(path);
-                var image = ImageIO.read(file);
-                var thumb = new BufferedImage(240, 144, BufferedImage.TYPE_INT_RGB);
-                var g = thumb.createGraphics();
-                try { g.drawImage(image, 0, 0, 240, 144, null); } finally { g.dispose(); }
-                var out = new ByteArrayOutputStream();
-                ImageIO.write(thumb, "png", out);
-                var encoded = Base64.getEncoder().encodeToString(out.toByteArray());
-                for (int from = 0; from < encoded.length(); from += 3800) {
-                  System.out.println("::notice title=Frame " + file.getName() + " part " + from + "::" + encoded.substring(from, Math.min(from + 3800, encoded.length())));
-                }
-              }
-            }
-          }
-          JAVA
-          java -Djava.awt.headless=true "$RUNNER_TEMP/Preview.java" build/desktop-check/*.png
