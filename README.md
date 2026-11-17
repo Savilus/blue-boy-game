@@ -4,6 +4,15 @@
 ### Introduce
 A simple 2D game written in Java. :video_game:
 
+### Build
+
+Install JDK 25 and configure your IDE's Gradle JVM to use it.
+Build and run the tests using the Gradle wrapper:
+
+```sh
+./gradlew build
+```
+
 The game features such things as:
 1) Character system: :runner:
     - character lvl and stats
