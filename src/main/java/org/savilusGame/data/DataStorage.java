@@ -42,4 +42,9 @@ public class DataStorage implements Serializable {
   Map<String, List<Boolean>> mapObjectOpened = new HashMap<>();
   public Map<String, List<Integer>> mapInteractiveTilesCurrentLife = new HashMap<>();
   public Map<String, List<Boolean>> mapInteractiveTilesInvincible = new HashMap<>();
+  // Dropped items (loot) lying on the ground, added in the entity-split refactor.
+  // Old save files have these as null and simply restore no drops, exactly like before.
+  Map<String, List<String>> mapItemDropNames = new HashMap<>();
+  Map<String, List<Integer>> mapItemDropWorldX = new HashMap<>();
+  Map<String, List<Integer>> mapItemDropWorldY = new HashMap<>();
 }

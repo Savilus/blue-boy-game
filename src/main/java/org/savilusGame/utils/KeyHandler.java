@@ -12,7 +12,6 @@ import static org.savilusGame.enums.SubState.DEFAULT;
 import static org.savilusGame.enums.SubState.MAIN_SETTINGS;
 import static org.savilusGame.enums.SubState.NPC_INVENTORY;
 import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -57,12 +56,12 @@ public class KeyHandler implements KeyListener {
       case KeyEvent.VK_ENTER -> {
         if (gamePanel.getUi().getCommandNum() == 0) {
           gamePanel.setGameState(PLAY_STATE);
-          gamePanel.playMusic(OUTSIDE_MUSIC);
+          gamePanel.playBGM(OUTSIDE_MUSIC);
         }
         if (gamePanel.getUi().getCommandNum() == 1) {
           gamePanel.getSaveLoad().load();
           gamePanel.setGameState(PLAY_STATE);
-          gamePanel.playMusic(OUTSIDE_MUSIC);
+          gamePanel.playBGM(OUTSIDE_MUSIC);
         }
         if (gamePanel.getUi().getCommandNum() == 2) {
           System.exit(0);
@@ -99,7 +98,7 @@ public class KeyHandler implements KeyListener {
       //DEBUG
       case KeyEvent.VK_T -> showDebugText = !showDebugText;
       //REFRESH MAP
-      case KeyEvent.VK_R -> gamePanel.getTileManager().loadMap(CURRENT_MAP);
+      case KeyEvent.VK_R -> gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
     }
   }
 
@@ -122,25 +121,25 @@ public class KeyHandler implements KeyListener {
       case KeyEvent.VK_W, KeyEvent.VK_UP -> {
         if (gamePanel.getUi().getPlayerSlotRow() != 0) {
           gamePanel.getUi().setPlayerSlotRow(gamePanel.getUi().getPlayerSlotRow() - 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_A, KeyEvent.VK_LEFT -> {
         if (gamePanel.getUi().getPlayerSlotCol() != 0) {
           gamePanel.getUi().setPlayerSlotCol(gamePanel.getUi().getPlayerSlotCol() - 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
         if (gamePanel.getUi().getPlayerSlotRow() != 3) {
           gamePanel.getUi().setPlayerSlotRow(gamePanel.getUi().getPlayerSlotRow() + 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
         if (gamePanel.getUi().getPlayerSlotCol() != 4) {
           gamePanel.getUi().setPlayerSlotCol(gamePanel.getUi().getPlayerSlotCol() + 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
     }
@@ -151,25 +150,25 @@ public class KeyHandler implements KeyListener {
       case KeyEvent.VK_W, KeyEvent.VK_UP -> {
         if (gamePanel.getUi().getNpcSlotRow() != 0) {
           gamePanel.getUi().setNpcSlotRow(gamePanel.getUi().getNpcSlotRow() - 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_A, KeyEvent.VK_LEFT -> {
         if (gamePanel.getUi().getNpcSlotCol() != 0) {
           gamePanel.getUi().setNpcSlotCol(gamePanel.getUi().getNpcSlotCol() - 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
         if (gamePanel.getUi().getNpcSlotRow() != 3) {
           gamePanel.getUi().setNpcSlotRow(gamePanel.getUi().getNpcSlotRow() + 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
         if (gamePanel.getUi().getNpcSlotCol() != 4) {
           gamePanel.getUi().setNpcSlotCol(gamePanel.getUi().getNpcSlotCol() + 1);
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
     }
@@ -186,14 +185,14 @@ public class KeyHandler implements KeyListener {
           if (gamePanel.getUi().getCommandNum() < 0) {
             gamePanel.getUi().setCommandNum(2);
           }
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
         case KeyEvent.VK_S -> {
           navigateCommandDown();
           if (gamePanel.getUi().getCommandNum() > 2) {
             gamePanel.getUi().setCommandNum(0);
           }
-          gamePanel.playSoundEffect(CURSOR);
+          gamePanel.playSE(CURSOR);
         }
       }
     } else if (gamePanel.getUi().getSubState() == NPC_INVENTORY) {
@@ -217,14 +216,14 @@ public class KeyHandler implements KeyListener {
         if (gamePanel.getUi().getCommandNum() < 0) {
           gamePanel.getUi().setCommandNum(1);
         }
-        gamePanel.playSoundEffect(CURSOR);
+        gamePanel.playSE(CURSOR);
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
         navigateCommandDown();
         if (gamePanel.getUi().getCommandNum() > 1) {
           gamePanel.getUi().setCommandNum(0);
         }
-        gamePanel.playSoundEffect(CURSOR);
+        gamePanel.playSE(CURSOR);
       }
       case KeyEvent.VK_ENTER -> {
         if (gamePanel.getUi().getCommandNum() == 0) {
@@ -259,14 +258,14 @@ public class KeyHandler implements KeyListener {
       case KeyEvent.VK_ENTER -> enterPressed = true;
       case KeyEvent.VK_W -> {
         navigateCommandUp();
-        gamePanel.playSoundEffect(CURSOR);
+        gamePanel.playSE(CURSOR);
         if (gamePanel.getUi().getCommandNum() < 0) {
           gamePanel.getUi().setCommandNum(maxCommandNum);
         }
       }
       case KeyEvent.VK_S -> {
         navigateCommandDown();
-        gamePanel.playSoundEffect(CURSOR);
+        gamePanel.playSE(CURSOR);
         if (gamePanel.getUi().getCommandNum() > maxCommandNum) {
           gamePanel.getUi().setCommandNum(0);
         }
@@ -293,7 +292,7 @@ public class KeyHandler implements KeyListener {
     int newVolume = increase ? Math.min(current + 1, 5) : Math.max(current - 1, 0);
     if (newVolume != current) {
       audio.setVolumeScale(newVolume);
-      gamePanel.playSoundEffect(CURSOR);
+      gamePanel.playSE(CURSOR);
     }
   }
 

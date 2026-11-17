@@ -1,7 +1,6 @@
 package org.savilusGame.utils;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 
 import java.awt.*;
@@ -9,8 +8,9 @@ import java.util.List;
 import java.util.Objects;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.Player;
+import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.enums.Direction;
 
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ public class CollisionDetector {
 
   private final GamePanel gamePanel;
 
-  public void checkTile(GameEntity gameEntity) {
+  public void checkTile(CollisionBody gameEntity) {
     int entityLeftWorldX = getXSolidArea(gameEntity);
     int entityRightWorldX = getXSolidArea(gameEntity) + gameEntity.getSolidArea().width;
     int entityTopWorldY = getYSolidArea(gameEntity);
@@ -39,7 +39,7 @@ public class CollisionDetector {
     if (gameEntity.isKnockBack()) {
       direction = gameEntity.getKnockBackDirection();
     }
-    var currentMapTiles = gamePanel.getTileManager().getGameMaps().get(CURRENT_MAP);
+    var currentMapTiles = gamePanel.getTileManager().getGameMaps().get(gamePanel.getWorld().getCurrentMap());
     switch (direction) {
       case UP -> {
         entityTopRow = (entityTopWorldY - gameEntity.getSpeed()) / TILE_SIZE;
@@ -67,7 +67,7 @@ public class CollisionDetector {
       }
       case RIGHT -> {
         entityRightCol = (entityRightWorldX + gameEntity.getSpeed()) / TILE_SIZE;
-        tileNum1 = currentMapTiles[entityLeftCol][entityTopRow];
+        tileNum1 = currentMapTiles[entityRightCol][entityTopRow];
         tileNum2 = currentMapTiles[entityRightCol][entityBottomRow];
         if (gamePanel.getTileManager().getTile()[tileNum1].collision() || gamePanel.getTileManager().getTile()[tileNum2].collision()) {
           gameEntity.setCollisionOn(true);
@@ -76,8 +76,8 @@ public class CollisionDetector {
     }
   }
 
-  public int checkObject(GameEntity gameEntity, boolean player) {
-    if (Objects.isNull(gamePanel.getMapsObjects().get(CURRENT_MAP)))
+  public int checkObject(CollisionBody gameEntity, boolean player) {
+    if (Objects.isNull(gamePanel.getWorld().currentObjects()))
       return INIT_INDEX;
 
     int index = INIT_INDEX;
@@ -87,7 +87,7 @@ public class CollisionDetector {
       direction = gameEntity.getKnockBackDirection();
     }
 
-    var objects = gamePanel.getMapsObjects().get(CURRENT_MAP);
+    var objects = gamePanel.getWorld().currentObjects();
 
     for (int i = 0; i < objects.size(); i++) {
       var mapObject = objects.get(i);
@@ -117,7 +117,7 @@ public class CollisionDetector {
   }
 
   // NPC OR MONSTER COLLISION
-  public int checkEntity(GameEntity gameEntity, List<GameEntity> target) {
+  public int checkEntity(CollisionBody gameEntity, List<? extends CollisionBody> target) {
     if (Objects.isNull(target) || target.isEmpty())
       return INIT_INDEX;
     int index = INIT_INDEX;
@@ -153,7 +153,7 @@ public class CollisionDetector {
     return index;
   }
 
-  public boolean checkPlayer(GameEntity gameEntity) {
+  public boolean checkPlayer(CollisionBody gameEntity) {
     boolean contactPlayer = false;
     //get entity's solid area position
     getSolidArea(gameEntity).x = getXSolidArea(gameEntity);
@@ -175,23 +175,61 @@ public class CollisionDetector {
     return contactPlayer;
   }
 
+
+  /**
+   * Overlap check against the dropped items of the current map. Items are never solid,
+   * so the movement collision flag is left untouched; only the first hit index is returned.
+   */
+  public int checkItems(CollisionBody gameEntity, List<ItemDrop> items) {
+    if (Objects.isNull(items) || items.isEmpty()) {
+      return INIT_INDEX;
+    }
+    int index = INIT_INDEX;
+    Direction direction = gameEntity.getDirection();
+    if (gameEntity.isKnockBack()) {
+      direction = gameEntity.getKnockBackDirection();
+    }
+
+    for (int itemIndex = 0; itemIndex < items.size(); itemIndex++) {
+      var itemDrop = items.get(itemIndex);
+      if (Objects.nonNull(itemDrop)) {
+        getSolidArea(gameEntity).x = getXSolidArea(gameEntity);
+        getSolidArea(gameEntity).y = getYSolidArea(gameEntity);
+
+        itemDrop.getSolidArea().x = itemDrop.getWorldX() + itemDrop.getSolidArea().x;
+        itemDrop.getSolidArea().y = itemDrop.getWorldY() + itemDrop.getSolidArea().y;
+
+        checkGameEntityCollision(gameEntity, direction);
+        if (getSolidArea(gameEntity).intersects(itemDrop.getSolidArea())) {
+          index = itemIndex;
+        }
+
+        getSolidArea(gameEntity).x = gameEntity.getSolidAreaDefaultX();
+        getSolidArea(gameEntity).y = gameEntity.getSolidAreaDefaultY();
+        itemDrop.getSolidArea().x = itemDrop.getSolidAreaDefaultX();
+        itemDrop.getSolidArea().y = itemDrop.getSolidAreaDefaultY();
+      }
+    }
+    return index;
+  }
+
   private Player getPlayer() {
     return gamePanel.getPlayer();
   }
 
-  private Rectangle getSolidArea(GameEntity gameEntity) {
+  private Rectangle getSolidArea(CollisionBody gameEntity) {
     return gameEntity.getSolidArea();
   }
 
-  private int getYSolidArea(GameEntity gameEntity){
+  private int getYSolidArea(CollisionBody gameEntity){
    return gameEntity.getWorldY() + gameEntity.getSolidArea().y;
   }
 
-  private int getXSolidArea(GameEntity gameEntity){
+  private int getXSolidArea(CollisionBody gameEntity){
     return gameEntity.getWorldX() + gameEntity.getSolidArea().x;
   }
 
-  private void checkGameEntityCollision(GameEntity gameEntity, Direction direction) {
+  private void checkGameEntityCollision(CollisionBody gameEntity, Direction direction) {
     switch (direction) {
       case UP -> getSolidArea(gameEntity).y -= gameEntity.getSpeed();
       case DOWN -> getSolidArea(gameEntity).y += gameEntity.getSpeed();

@@ -8,16 +8,13 @@ import static org.savilusGame.enums.GameState.MAP_STATE;
 import static org.savilusGame.enums.GameState.PAUSE_STATE;
 import static org.savilusGame.enums.GameState.PLAY_STATE;
 import static org.savilusGame.enums.GameState.TITLE_STATE;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import javax.swing.*;
@@ -25,16 +22,27 @@ import javax.swing.*;
 import org.savilusGame.ai.PathFinder;
 import org.savilusGame.config.Config;
 import org.savilusGame.data.SaveLoad;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.GameEntityFactory;
+import org.savilusGame.entity.InteractiveObject;
+import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.Player;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.enums.Area;
 import org.savilusGame.enums.GameState;
 import org.savilusGame.environment.EnvironmentManager;
+import org.savilusGame.service.AudioService;
+import org.savilusGame.service.CollisionService;
+import org.savilusGame.service.ItemCatalog;
+import org.savilusGame.service.PathfindingService;
+import org.savilusGame.service.RenderContext;
+import org.savilusGame.service.TextRepository;
 import org.savilusGame.tile.GameMap;
 import org.savilusGame.tile.TileManager;
+import org.savilusGame.world.World;
 import org.savilusGame.utils.AssetSetter;
+import org.savilusGame.utils.text.TextManager;
 import org.savilusGame.utils.CollisionDetector;
 import org.savilusGame.utils.CutsceneManager;
 import org.savilusGame.utils.KeyHandler;
@@ -48,7 +56,7 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class GamePanel extends JPanel implements Runnable {
+public class GamePanel extends JPanel implements Runnable, CollisionService, PathfindingService, AudioService, TextRepository, ItemCatalog, RenderContext {
 
   final static int ALLOWED_ITEMS = 20;
 
@@ -73,7 +81,8 @@ public class GamePanel extends JPanel implements Runnable {
 
   // SYSTEM
   static final int FPS = 60;
-  final TileManager tileManager = TileManager.getInstance(this);
+  final TileManager tileManager = new TileManager(this);
+  final World world = new World(tileManager, MAIN_MAP);
   final KeyHandler keyHandler = new KeyHandler(this);
   Sound music = new Sound();
   Sound soundEffect = new Sound();
@@ -92,13 +101,6 @@ public class GamePanel extends JPanel implements Runnable {
 
   // ENTITY AND OBJECT
   Player player = new Player(this, keyHandler);
-  Map<String, List<GameEntity>> mapsObjects = new HashMap<>();
-  Map<String, List<GameEntity>> mapsNpc = new HashMap<>();
-  Map<String, List<GameEntity>> mapsMonsters = new HashMap<>();
-  Map<String, List<InteractiveTile>> mapsInteractiveTiles = new HashMap<>();
-  Map<String, List<GameEntity>> projectiles = new HashMap<>();
-  ArrayList<GameEntity> particleList = new ArrayList<>();
-  ArrayList<GameEntity> gameObjects = new ArrayList<>();
 
   // AREA
   Area currentArea;
@@ -106,7 +108,6 @@ public class GamePanel extends JPanel implements Runnable {
 
   // GAME STATE
   GameState gameState;
-  boolean bossBattleOn = false;
 
   public GamePanel() {
     this.setPreferredSize(new Dimension(screenWidth, screenHeight));
@@ -123,7 +124,7 @@ public class GamePanel extends JPanel implements Runnable {
   }
 
   public void setupGame() {
-    mapsObjects.put(CURRENT_MAP, new ArrayList<>());
+    world.mapsObjects().put(world.getCurrentMap(), new ArrayList<>());
     assetSetter.setNPC();
     assetSetter.setObject();
     assetSetter.setInteractiveTiles();
@@ -140,26 +141,38 @@ public class GamePanel extends JPanel implements Runnable {
       setFullScreen();
   }
 
-  public void playMusic(String sound) {
-    music.setFile(sound);
+  @Override
+  public void playBGM(String soundId) {
+    music.setFile(soundId);
     music.play();
     music.loop();
+  }
+
+  @Override
+  public void stopBGM() {
+    music.stop();
+  }
+
+  @Override
+  public void playSE(String soundId) {
+    soundEffect.setFile(soundId);
+    soundEffect.play();
   }
 
   public void resetGame(boolean restart) {
     player.setDefaultPositions();
     player.restorePlayerStatus();
     player.resetCounter();
-    removeTemporaryGameEntity();
-    bossBattleOn = false;
-    CURRENT_MAP = MAIN_MAP;
+    world.removeTemporaryObjects();
+    world.setBossBattleOn(false);
+    world.switchMap(MAIN_MAP);
     currentArea = Area.OUTSIDE;
     assetSetter.setMonster();
     assetSetter.setNPC();
-    playMusic(OUTSIDE_MUSIC);
+    playBGM(OUTSIDE_MUSIC);
 
     if (restart) {
-      music.stop();
+      stopBGM();
       player.setDefaultValues();
       player.setItems();
       assetSetter.setObject();
@@ -171,27 +184,18 @@ public class GamePanel extends JPanel implements Runnable {
 
   public void changeArea() {
     if (nextArea != currentArea) {
-      stopMusic();
+      stopBGM();
 
       switch (nextArea) {
-        case OUTSIDE -> playMusic(OUTSIDE_MUSIC);
-        case INDOOR -> playMusic(MERCHANT_SONG);
-        case DUNGEON -> playMusic(DUNGEON_SONG);
+        case OUTSIDE -> playBGM(OUTSIDE_MUSIC);
+        case INDOOR -> playBGM(MERCHANT_SONG);
+        case DUNGEON -> playBGM(DUNGEON_SONG);
         default -> throw new IllegalStateException("Unexpected value: " + nextArea);
       }
     }
 
     currentArea = nextArea;
     assetSetter.setMonster();
-  }
-
-  public void stopMusic() {
-    music.stop();
-  }
-
-  public void playSoundEffect(String sound) {
-    soundEffect.setFile(sound);
-    soundEffect.play();
   }
 
   private void setFullScreen() {
@@ -203,19 +207,108 @@ public class GamePanel extends JPanel implements Runnable {
     screenHeightFull = (int) height;
   }
 
+  // ------------------------------------------------------------------
+  // Service interface delegations (Phase 0: no behavior change)
+  // ------------------------------------------------------------------
+  @Override
+  public void checkTile(org.savilusGame.entity.CollisionBody entity) {
+    collisionDetector.checkTile(entity);
+  }
+
+  @Override
+  public int checkObject(org.savilusGame.entity.CollisionBody entity, boolean player) {
+    return collisionDetector.checkObject(entity, player);
+  }
+
+  @Override
+  public int checkEntity(org.savilusGame.entity.CollisionBody entity, List<? extends org.savilusGame.entity.CollisionBody> target) {
+    return collisionDetector.checkEntity(entity, target);
+  }
+
+  @Override
+  public boolean checkPlayer(org.savilusGame.entity.CollisionBody entity) {
+    return collisionDetector.checkPlayer(entity);
+  }
+
+  @Override
+  public int checkItems(org.savilusGame.entity.CollisionBody entity, List<org.savilusGame.entity.item.ItemDrop> items) {
+    return collisionDetector.checkItems(entity, items);
+  }
+
+  @Override
+  public void setNodes(int startCol, int startRow, int goalCol, int goalRow) {
+    pathFinder.setNodes(startCol, startRow, goalCol, goalRow);
+  }
+
+  @Override
+  public boolean search() {
+    return pathFinder.search();
+  }
+
+  @Override
+  public java.util.List<org.savilusGame.ai.Node> getPathList() {
+    return pathFinder.getPathList();
+  }
+
+  @Override
+  public java.util.Map<String, List<String>> getDialoguesForTarget(String target) {
+    return TextManager.getAllDialoguesForTarget(target);
+  }
+
+  @Override
+  public List<String> getDialoguesKeysForTarget(String target) {
+    return TextManager.getDialoguesKeysForTarget(target);
+  }
+
+  @Override
+  public String getUiText(String uiField, String uiTextKey) {
+    return TextManager.getUiText(uiField, uiTextKey);
+  }
+
+  @Override
+  public String getSettingText(String settingField, String settingName) {
+    return TextManager.getSettingText(settingField, settingName);
+  }
+
+  @Override
+  public String getItemName(String itemTextKey) {
+    return TextManager.getItemName(itemTextKey);
+  }
+
+  @Override
+  public String getItemDescription(String itemTextKey) {
+    return TextManager.getItemDescription(itemTextKey);
+  }
+
+  @Override
+  public java.util.Map<String, List<String>> getItemTexts(String itemTextKey, String... replacements) {
+    return TextManager.getItemTexts(itemTextKey, replacements);
+  }
+
+  @Override
+  public Item getItem(String name) {
+    return gameEntityFactory.getItem(name);
+  }
+
+  @Override
+  public Graphics2D graphics() {
+    return tempGraphic2d;
+  }
+
+  @Override
+  public int cameraX() {
+    return player.getWorldX() - player.getScreenX();
+  }
+
+  @Override
+  public int cameraY() {
+    return player.getWorldY() - player.getScreenY();
+  }
+
   private void drawToScreen() {
     var screenGraphics = getGraphics();
     screenGraphics.drawImage(tempScreen, 0, 0, screenWidthFull, screenHeightFull, null);
     screenGraphics.dispose();
-  }
-
-  private void removeTemporaryGameEntity() {
-    for (String mapName : tileManager.getGameMaps().keySet()) {
-      List<GameEntity> allMapObjects = mapsObjects.get(mapName);
-      if (allMapObjects == null || allMapObjects.isEmpty()) continue;
-
-      allMapObjects.removeIf(object -> object != null && object.isTemporaryObject());
-    }
   }
 
 
@@ -226,7 +319,7 @@ public class GamePanel extends JPanel implements Runnable {
       gameMap.drawFullMapScreen(tempGraphic2d);
     } else {
       tileManager.draw(tempGraphic2d);
-      var interactiveTiles = mapsInteractiveTiles.get(CURRENT_MAP);
+      var interactiveTiles = world.currentInteractiveTiles();
       if (Objects.nonNull(interactiveTiles)) {
         for (InteractiveTile interactiveTile : interactiveTiles) {
           if (Objects.nonNull(interactiveTile)) {
@@ -235,49 +328,62 @@ public class GamePanel extends JPanel implements Runnable {
         }
       }
 
-      gameObjects.add(player);
-      // ADD ENTITY TO THE LIST
-      if (Objects.nonNull(mapsNpc.get(CURRENT_MAP))) {
-        for (GameEntity npc : mapsNpc.get(CURRENT_MAP)) {
+      // ONE y-sorted draw list: player + actors + world objects + item drops (identical z-order as before).
+      List<CollisionBody> drawables = new ArrayList<>();
+      drawables.add(player);
+      if (Objects.nonNull(world.currentNpc())) {
+        for (Actor npc : world.currentNpc()) {
           if (Objects.nonNull(npc)) {
-            gameObjects.add(npc);
+            drawables.add(npc);
           }
         }
       }
-      if (Objects.nonNull(mapsObjects.get(CURRENT_MAP))) {
-        for (GameEntity object : mapsObjects.get(CURRENT_MAP)) {
+      if (Objects.nonNull(world.currentObjects())) {
+        for (InteractiveObject object : world.currentObjects()) {
           if (Objects.nonNull(object)) {
-            gameObjects.add(object);
+            drawables.add(object);
           }
         }
       }
-      if (Objects.nonNull(mapsMonsters.get(CURRENT_MAP))) {
-        for (GameEntity monster : mapsMonsters.get(CURRENT_MAP)) {
+      if (Objects.nonNull(world.currentMonsters())) {
+        for (Actor monster : world.currentMonsters()) {
           if (Objects.nonNull(monster)) {
-            gameObjects.add(monster);
+            drawables.add(monster);
+          }
+        }
+      }
+      if (Objects.nonNull(world.currentProjectiles())) {
+        for (Actor projectile : world.currentProjectiles()) {
+          if (Objects.nonNull(projectile)) {
+            drawables.add(projectile);
+          }
+        }
+      }
+      for (Actor particle : world.particleList()) {
+        if (Objects.nonNull(particle)) {
+          drawables.add(particle);
+        }
+      }
+      if (Objects.nonNull(world.currentItems())) {
+        for (var itemDrop : world.currentItems()) {
+          if (Objects.nonNull(itemDrop)) {
+            drawables.add(itemDrop);
           }
         }
       }
 
-      for (GameEntity projectile : projectiles.get(CURRENT_MAP)) {
-        if (Objects.nonNull(projectile)) {
-          gameObjects.add(projectile);
+      drawables.sort(Comparator.comparingInt(CollisionBody::getWorldY));
+
+      for (CollisionBody drawable : drawables) {
+        if (drawable instanceof Actor actor) {
+          actor.draw(tempGraphic2d);
+        } else if (drawable instanceof InteractiveObject interactiveObject) {
+          interactiveObject.draw(tempGraphic2d);
+        } else if (drawable instanceof org.savilusGame.entity.item.ItemDrop itemDrop) {
+          itemDrop.draw(tempGraphic2d);
         }
       }
 
-      for (GameEntity particle : particleList) {
-        if (Objects.nonNull(particle)) {
-          gameObjects.add(particle);
-        }
-      }
-
-      gameObjects.sort(Comparator.comparingInt(GameEntity::getWorldY));
-
-      for (GameEntity gameObject : gameObjects) {
-        gameObject.draw(tempGraphic2d);
-      }
-
-      gameObjects.clear();
       environmentManager.draw(tempGraphic2d);
       gameMap.drawMiniMap(tempGraphic2d);
       cutsceneManager.draw(tempGraphic2d);
@@ -308,16 +414,16 @@ public class GamePanel extends JPanel implements Runnable {
   private void update() {
     if (gameState == PLAY_STATE) {
       player.update();
-      if (Objects.nonNull(mapsNpc.get(CURRENT_MAP))) {
-        for (GameEntity gameEntity : mapsNpc.get(CURRENT_MAP)) {
+      if (Objects.nonNull(world.currentNpc())) {
+        for (Actor gameEntity : world.currentNpc()) {
           if (Objects.nonNull(gameEntity)) {
             gameEntity.update();
           }
         }
       }
 
-      if (Objects.nonNull(mapsMonsters.get(CURRENT_MAP))) {
-        var monsters = mapsMonsters.get(CURRENT_MAP);
+      if (Objects.nonNull(world.currentMonsters())) {
+        var monsters = world.currentMonsters();
         for (int monsterIndex = 0; monsterIndex < monsters.size(); monsterIndex++) {
           var monster = monsters.get(monsterIndex);
           if (monster.isAlive() && !monster.isDying()) {
@@ -331,7 +437,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
       }
 
-      var projectilesList = projectiles.get(CURRENT_MAP);
+      var projectilesList = world.currentProjectiles();
       for (int currentProjectile = 0; currentProjectile < projectilesList.size(); currentProjectile++) {
         var projectile = projectilesList.get(currentProjectile);
         if (Objects.nonNull(projectile) && projectile.isAlive()) {
@@ -342,7 +448,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
       }
 
-      var interactiveTiles = mapsInteractiveTiles.get(CURRENT_MAP);
+      var interactiveTiles = world.currentInteractiveTiles();
       if (Objects.nonNull(interactiveTiles)) {
         for (InteractiveTile interactiveTile : interactiveTiles) {
           if (Objects.nonNull(interactiveTile)) {
@@ -351,9 +457,9 @@ public class GamePanel extends JPanel implements Runnable {
         }
       }
 
-      Iterator<GameEntity> particleIterator = particleList.iterator();
+      Iterator<Actor> particleIterator = world.particleList().iterator();
       while (particleIterator.hasNext()) {
-        GameEntity particle = particleIterator.next();
+        Actor particle = particleIterator.next();
         if (Objects.nonNull(particle) && particle.isAlive()) {
           particle.update();
         } else {

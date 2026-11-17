@@ -8,7 +8,7 @@ public class Main {
 
   public static JFrame window;
 
-  public static void main(String[] args) {
+  static void main() {
     window = new JFrame();
     window.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
     window.setResizable(false);

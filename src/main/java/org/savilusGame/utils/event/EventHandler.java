@@ -11,7 +11,6 @@ import static org.savilusGame.config.GameEntityNameFactory.STAIRS;
 import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
 import static org.savilusGame.enums.GameState.DIALOG_STATE;
 import static org.savilusGame.enums.GameState.TRANSITION_STATE;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.*;
 import java.util.HashMap;
@@ -19,8 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.data.Progress;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.Player;
 import org.savilusGame.enums.Area;
 import org.savilusGame.enums.Direction;
@@ -74,7 +72,7 @@ public class EventHandler {
     }
 
     if (canTouchEvent) {
-      handleMapEvents(CURRENT_MAP);
+      handleMapEvents(gamePanel.getWorld().getCurrentMap());
     }
   }
 
@@ -110,10 +108,10 @@ public class EventHandler {
 
   private void handleInteriorMapEvents() {
     if (hit(12, 13, Direction.ANY)) mapTeleport(MAIN_MAP, 10, 39, Area.OUTSIDE);
-    else if (hit(12, 9, Direction.UP)) speak(gamePanel.getMapsNpc().get(INTERIOR_MAP).getFirst());
+    else if (hit(12, 9, Direction.UP)) speak(gamePanel.getWorld().mapsNpc().get(INTERIOR_MAP).getFirst());
   }
 
-  private void speak(GameEntity gameEntity) {
+  private void speak(Actor gameEntity) {
     if (gamePanel.getKeyHandler().isEnterPressed()) {
       gamePanel.setGameState(DIALOG_STATE);
       getPlayer().setAttackCanceled(true);
@@ -166,11 +164,11 @@ public class EventHandler {
     tempCol = col;
     tempRow = row;
     canTouchEvent = false;
-    gamePanel.playSoundEffect(STAIRS);
+    gamePanel.playSE(STAIRS);
   }
 
   private void skeletonLord() {
-    if (!gamePanel.isBossBattleOn() && !Progress.skeletonLordDefeated) {
+    if (!gamePanel.getWorld().isBossBattleOn() && !gamePanel.getWorld().isSkeletonLordDefeated()) {
       gamePanel.setGameState(CUTSCENE_STATE);
       gamePanel.getCutsceneManager().setSceneNum(gamePanel.getCutsceneManager().getSkeletonLord());
     }
@@ -180,7 +178,7 @@ public class EventHandler {
     gamePanel.setGameState(DIALOG_STATE);
     getPlayer().startDialogue(getPlayer(), DAMAGE_PIT);
     getPlayer().setCurrentLife(getPlayer().getCurrentLife() - 1);
-    gamePanel.playSoundEffect(RECEIVE_DAMAGE);
+    gamePanel.playSE(RECEIVE_DAMAGE);
 //    eventRect[col][row].eventDone = true;
     canTouchEvent = false;
   }
@@ -189,7 +187,7 @@ public class EventHandler {
     if (gamePanel.getKeyHandler().isEnterPressed()) {
       gamePanel.setGameState(DIALOG_STATE);
       getPlayer().setAttackCanceled(true);
-      gamePanel.playSoundEffect(POWER_UP);
+      gamePanel.playSE(POWER_UP);
       getPlayer().startDialogue(getPlayer(), HEALING_POOL);
       getPlayer().setCurrentLife(getPlayer().getMaxLife());
       getPlayer().setMana(getPlayer().getMaxMana());

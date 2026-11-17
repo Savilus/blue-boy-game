@@ -1,7 +1,6 @@
 package org.savilusGame.tile;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
@@ -35,7 +34,7 @@ public class GameMap {
 
   public GameMap(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
-    this.tileManager = TileManager.getInstance(gamePanel);
+    this.tileManager = gamePanel.getTileManager();
     createWorldMap();
   }
 
@@ -49,7 +48,7 @@ public class GameMap {
     var worldMapImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     var graphics2D = worldMapImage.createGraphics();
 
-    int[][] tileMap = tileManager.getGameMaps().get(CURRENT_MAP);
+    int[][] tileMap = tileManager.getGameMaps().get(gamePanel.getWorld().getCurrentMap());
 
     for (int row = 0; row < rows; row++) {
       for (int col = 0; col < cols; col++) {
@@ -64,7 +63,7 @@ public class GameMap {
     }
 
     graphics2D.dispose();
-    worldGameMap.put(CURRENT_MAP, worldMapImage);
+    worldGameMap.put(gamePanel.getWorld().getCurrentMap(), worldMapImage);
   }
 
 
@@ -101,7 +100,7 @@ public class GameMap {
     }
 
     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-    g2.drawImage(worldGameMap.get(CURRENT_MAP), x, y, width, height, null);
+    g2.drawImage(worldGameMap.get(gamePanel.getWorld().getCurrentMap()), x, y, width, height, null);
 
     double scale = (double) (TILE_SIZE * gamePanel.getMaxWorldCol()) / width;
     int playerX = (int) (x + gamePanel.getPlayer().getWorldX() / scale);

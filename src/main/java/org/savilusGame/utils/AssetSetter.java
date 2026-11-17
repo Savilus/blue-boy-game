@@ -13,8 +13,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.interactiveObjects.BigRock;
+import org.savilusGame.entity.item.Item;
+import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.entity.interactiveTile.DestructibleWall;
 import org.savilusGame.entity.interactiveTile.InteractiveDryTree;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
@@ -50,22 +52,25 @@ public class AssetSetter {
   GamePanel gamePanel;
 
   public void setObject() {
-    Map<String, List<GameEntity>> mapsObjects = new HashMap<>();
+    Map<String, List<InteractiveObject>> mapsObjects = new HashMap<>();
+    Map<String, List<ItemDrop>> mapsItems = new HashMap<>();
 
     mapsObjects.put(MAIN_MAP, new ArrayList<>(List.of(
-        new BronzeCoin(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 23),
-        new BronzeCoin(gamePanel).setWorldPosition(TILE_SIZE * 21, TILE_SIZE * 19),
-        new BlueShield(gamePanel).setWorldPosition(TILE_SIZE * 39, TILE_SIZE * 19),
         new Door(gamePanel).setWorldPosition(TILE_SIZE * 14, TILE_SIZE * 28),
         new Door(gamePanel).setWorldPosition(TILE_SIZE * 12, TILE_SIZE * 12),
-        new RedPotion(gamePanel).setWorldPosition(TILE_SIZE * 13, TILE_SIZE * 25),
-        new RedPotion(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 7),
-        new ManaCrystal(gamePanel).setWorldPosition(TILE_SIZE * 31, TILE_SIZE * 42),
-        new ManaCrystal(gamePanel).setWorldPosition(TILE_SIZE * 26, TILE_SIZE * 36),
-        new RedPotion(gamePanel).setWorldPosition(TILE_SIZE * 38, TILE_SIZE * 29),
         new Chest(gamePanel).setLoot(new Lantern(gamePanel)).setWorldPosition(TILE_SIZE * 19, TILE_SIZE * 41),
         new Chest(gamePanel).setLoot(new Key(gamePanel)).setWorldPosition(TILE_SIZE * 33, TILE_SIZE * 7),
         new Chest(gamePanel).setLoot(new Axe(gamePanel)).setWorldPosition(TILE_SIZE * 37, TILE_SIZE * 43)
+    )));
+    mapsItems.put(MAIN_MAP, new ArrayList<>(List.of(
+        drop(new BronzeCoin(gamePanel), 25, 23),
+        drop(new BronzeCoin(gamePanel), 21, 19),
+        drop(new BlueShield(gamePanel), 39, 19),
+        drop(new RedPotion(gamePanel), 13, 25),
+        drop(new RedPotion(gamePanel), 23, 7),
+        drop(new ManaCrystal(gamePanel), 31, 42),
+        drop(new ManaCrystal(gamePanel), 26, 36),
+        drop(new RedPotion(gamePanel), 38, 29)
     )));
 
     mapsObjects.put(DUNGEON_FIRST_FLOR, new ArrayList<>(List.of(
@@ -75,18 +80,29 @@ public class AssetSetter {
         new Chest(gamePanel).setLoot(new RedPotion(gamePanel)).setWorldPosition(TILE_SIZE * 27, TILE_SIZE * 15),
         new IronDoor(gamePanel).setWorldPosition(TILE_SIZE * 18, TILE_SIZE * 23)
     )));
+    mapsItems.put(DUNGEON_FIRST_FLOR, new ArrayList<>());
 
     mapsObjects.put(DUNGEON_SECOND_FLOR, new ArrayList<>(List.of(
-        new IronDoor(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 15),
-        new BlueHeart(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 8)
+        new IronDoor(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 15)
+    )));
+    mapsItems.put(DUNGEON_SECOND_FLOR, new ArrayList<>(List.of(
+        drop(new BlueHeart(gamePanel), 25, 8)
     )));
 
-    gamePanel.setMapsObjects(mapsObjects);
+    mapsObjects.put(INTERIOR_MAP, new ArrayList<>());
+    mapsItems.put(INTERIOR_MAP, new ArrayList<>());
+
+    gamePanel.getWorld().setObjects(mapsObjects);
+    gamePanel.getWorld().setItems(mapsItems);
+  }
+
+  private ItemDrop drop(Item item, int col, int row) {
+    return new ItemDrop(gamePanel, item).setWorldPosition(TILE_SIZE * col, TILE_SIZE * row);
   }
 
 
   public void setProjectile() {
-    gamePanel.setProjectiles(Map.of(
+    gamePanel.getWorld().setProjectiles(Map.of(
         MAIN_MAP, new ArrayList<>(),
         INTERIOR_MAP, new ArrayList<>(),
         DUNGEON_FIRST_FLOR, new ArrayList<>(),
@@ -95,22 +111,22 @@ public class AssetSetter {
   }
 
   public void setNPC() {
-    gamePanel.setMapsNpc(new HashMap<>());
-    gamePanel.getMapsNpc().put(MAIN_MAP, new ArrayList<>(List.of(
+    gamePanel.getWorld().setNpcs(new HashMap<>());
+    gamePanel.getWorld().mapsNpc().put(MAIN_MAP, new ArrayList<>(List.of(
         new OldManNPC(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 13)
     )));
-    gamePanel.getMapsNpc().put(INTERIOR_MAP, new ArrayList<>(List.of(
+    gamePanel.getWorld().mapsNpc().put(INTERIOR_MAP, new ArrayList<>(List.of(
         new MerchantNPC(gamePanel).setWorldPosition(TILE_SIZE * 12, TILE_SIZE * 7)
     )));
-    gamePanel.getMapsNpc().put(DUNGEON_SECOND_FLOR, new ArrayList<>());
+    gamePanel.getWorld().mapsNpc().put(DUNGEON_SECOND_FLOR, new ArrayList<>());
   }
 
 
   public void setInteractiveObjects() {
-    if (Objects.isNull(gamePanel.getMapsNpc())) {
-      gamePanel.setMapsNpc(new HashMap<>());
+    if (Objects.isNull(gamePanel.getWorld().mapsNpc())) {
+      gamePanel.getWorld().setNpcs(new HashMap<>());
     }
-    gamePanel.getMapsNpc().put(DUNGEON_FIRST_FLOR, new ArrayList<>(List.of(
+    gamePanel.getWorld().mapsNpc().put(DUNGEON_FIRST_FLOR, new ArrayList<>(List.of(
         new BigRock(gamePanel).setWorldPosition(TILE_SIZE * 20, TILE_SIZE * 25),
         new BigRock(gamePanel).setWorldPosition(TILE_SIZE * 11, TILE_SIZE * 18),
         new BigRock(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 15)
@@ -118,7 +134,7 @@ public class AssetSetter {
   }
 
   public void setMonster() {
-    gamePanel.setMapsMonsters(Map.of(
+    gamePanel.getWorld().setMonsters(Map.of(
         MAIN_MAP, new ArrayList<>(List.of(
             new GreenSlime(gamePanel).setWorldPosition(TILE_SIZE * 21, TILE_SIZE * 38),
             new GreenSlime(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 42),
@@ -202,6 +218,6 @@ public class AssetSetter {
         ))
     );
     interactiveTiles.put(INTERIOR_MAP, new ArrayList<>());
-    gamePanel.setMapsInteractiveTiles(interactiveTiles);
+    gamePanel.getWorld().setInteractiveTiles(interactiveTiles);
   }
 }

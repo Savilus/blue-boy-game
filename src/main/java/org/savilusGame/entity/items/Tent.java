@@ -7,30 +7,30 @@ import static org.savilusGame.enums.GameState.SLEEP_STATE;
 import static org.savilusGame.enums.WorldGameTypes.CONSUMABLE;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.item.Item;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.utils.text.TextManager;
 
-public class Tent extends GameEntity {
+public class Tent extends Item {
 
   public Tent(GamePanel gamePanel) {
-    super(gamePanel);
+    super(gamePanel, GameObject.TENT);
     type = CONSUMABLE;
-    name = GameObject.TENT.getName();
-    mainImage = setup(TENT, TILE_SIZE, TILE_SIZE);
-    down1 = setup(TENT, TILE_SIZE, TILE_SIZE);
+    icon = SpriteLoader.load(TENT, TILE_SIZE, TILE_SIZE);
     description = String.format(TextManager.getItemDescription(GameObject.TENT.getTextKey()), name);
     price = 40;
     stackable = true;
   }
 
   @Override
-  public boolean use(GameEntity gameEntity) {
+  public boolean use(Actor user) {
     gamePanel.setGameState(SLEEP_STATE);
-    gamePanel.playSoundEffect(SLEEP);
+    gamePanel.playSE(SLEEP);
     gamePanel.getPlayer().setCurrentLife(gamePanel.getPlayer().getMaxLife());
     gamePanel.getPlayer().setMana(gamePanel.getPlayer().getMaxMana());
-    gamePanel.getPlayer().setSleepingImage(mainImage);
+    gamePanel.getPlayer().setSleepingImage(icon);
     return true;
   }
 }

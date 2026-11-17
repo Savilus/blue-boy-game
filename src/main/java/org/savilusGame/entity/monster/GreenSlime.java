@@ -7,7 +7,8 @@ import static org.savilusGame.config.GameEntityNameFactory.GREEN_SLIME_DOWN2;
 import java.util.Random;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.items.BronzeCoin;
 import org.savilusGame.entity.items.Heart;
 import org.savilusGame.entity.items.ManaCrystal;
@@ -15,7 +16,7 @@ import org.savilusGame.entity.projectile.Rock;
 import org.savilusGame.enums.MonsterType;
 import org.savilusGame.enums.WorldGameTypes;
 
-public class GreenSlime extends GameEntity {
+public class GreenSlime extends Actor {
 
   private final static int SHOOT_RATE = 100;
   private final static int RANDOM_DIRECTION_INTERVAL = 120;
@@ -29,7 +30,7 @@ public class GreenSlime extends GameEntity {
     speed = defaultSpeed;
     maxLife = 4;
     currentLife = maxLife;
-    type = WorldGameTypes.MONSTER;
+    monster = true;
     attack = 5;
     defense = 0;
     exp = 2;
@@ -45,14 +46,14 @@ public class GreenSlime extends GameEntity {
   }
 
   private void getImage() {
-    up1 = setup(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    up2 = setup(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    down1 = setup(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = setup(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = setup(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    left2 = setup(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    right1 = setup(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    right2 = setup(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
+    up1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    up2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
+    down1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    left2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
+    right1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    right2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

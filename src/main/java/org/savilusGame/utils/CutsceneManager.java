@@ -7,14 +7,14 @@ import static org.savilusGame.config.GameEntityNameFactory.FANFARE;
 import static org.savilusGame.config.GameEntityNameFactory.FINAL_BATTLE;
 import static org.savilusGame.config.GameEntityNameFactory.OUTSIDE_MUSIC;
 import static org.savilusGame.enums.GameState.PLAY_STATE;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.*;
 import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.PlayerDummy;
 import org.savilusGame.entity.items.BlueHeart;
 import org.savilusGame.entity.items.IronDoor;
@@ -63,24 +63,24 @@ public class CutsceneManager {
   }
 
   private void skeletonLordScene() {
-    var mapNpcs = gamePanel.getMapsNpc().get(CURRENT_MAP);
+    var mapNpcs = gamePanel.getWorld().currentNpc();
 
     if (scenePhase == 0) {
-      gamePanel.setBossBattleOn(true);
+      gamePanel.getWorld().setBossBattleOn(true);
 
-      GameEntity ironDoor = new IronDoor(gamePanel);
+      InteractiveObject ironDoor = new IronDoor(gamePanel);
       ironDoor.setWorldX(TILE_SIZE * 25);
       ironDoor.setWorldY(TILE_SIZE * 28);
       ironDoor.setTemporaryObject(true);
-      gamePanel.getMapsObjects().get(CURRENT_MAP).add(ironDoor);
-      gamePanel.playSoundEffect(DOOR_OPEN);
+      gamePanel.getWorld().currentObjects().add(ironDoor);
+      gamePanel.playSE(DOOR_OPEN);
 
       PlayerDummy dummy = new PlayerDummy(gamePanel);
       dummy.setWorldX(gamePanel.getPlayer().getWorldX());
       dummy.setWorldY(gamePanel.getPlayer().getWorldY());
       dummy.setDirection(gamePanel.getPlayer().getDirection());
 
-      gamePanel.getMapsNpc().get(CURRENT_MAP).add(dummy);
+      gamePanel.getWorld().currentNpc().add(dummy);
       gamePanel.getPlayer().setDrawing(false);
       scenePhase++;
     }
@@ -93,8 +93,8 @@ public class CutsceneManager {
     }
 
     if (scenePhase == 2) {
-      var monsters = gamePanel.getMapsMonsters().get(CURRENT_MAP);
-      for (GameEntity monster : monsters) {
+      var monsters = gamePanel.getWorld().currentMonsters();
+      for (Actor monster : monsters) {
         if (Objects.nonNull(monster) &&
             StringUtils.equalsIgnoreCase(monster.getName(), MonsterType.SKELETON_LORD.getName())) {
           monster.setSleep(false);
@@ -106,8 +106,8 @@ public class CutsceneManager {
     }
 
     if (scenePhase == 3) {
-      var monsters = gamePanel.getMapsMonsters().get(CURRENT_MAP);
-      for (GameEntity monster : monsters) {
+      var monsters = gamePanel.getWorld().currentMonsters();
+      for (Actor monster : monsters) {
         if (Objects.nonNull(monster) &&
             StringUtils.equalsIgnoreCase(monster.getName(), MonsterType.SKELETON_LORD.getName())) {
           monster.startDialogue(monster, CUTSCENE_DIALOGUE);
@@ -131,15 +131,15 @@ public class CutsceneManager {
       sceneNum = NA;
       scenePhase = 0;
       gamePanel.setGameState(PLAY_STATE);
-      gamePanel.stopMusic();
-      gamePanel.playMusic(FINAL_BATTLE);
+      gamePanel.stopBGM();
+      gamePanel.playBGM(FINAL_BATTLE);
     }
   }
 
   private void endingScene() {
     var blueHeart = new BlueHeart(gamePanel);
     if (scenePhase == 0) {
-      gamePanel.stopMusic();
+      gamePanel.stopBGM();
       blueHeart.startDialogue(blueHeart, CUTSCENE_DIALOGUE);
       scenePhase++;
     }
@@ -147,7 +147,7 @@ public class CutsceneManager {
       gamePanel.getUi().drawDialogueScreen();
     }
     if (scenePhase == 2) {
-      gamePanel.playSoundEffect(FANFARE);
+      gamePanel.playSE(FANFARE);
       scenePhase++;
     }
     if (scenePhase == 3) {
@@ -175,7 +175,7 @@ public class CutsceneManager {
           70);
 
       if (counterReachedTargetTime(FIVE_SECONDS * 2)) {
-        gamePanel.playMusic(OUTSIDE_MUSIC);
+        gamePanel.playBGM(OUTSIDE_MUSIC);
         scenePhase++;
       }
     }

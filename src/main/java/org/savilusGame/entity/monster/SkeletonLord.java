@@ -36,11 +36,10 @@ import static org.savilusGame.config.GameEntityNameFactory.SKELETON_LORD_RIGHT2;
 import static org.savilusGame.config.GameEntityNameFactory.SKELETON_LORD_UP1;
 import static org.savilusGame.config.GameEntityNameFactory.SKELETON_LORD_UP2;
 import static org.savilusGame.enums.MonsterType.SKELETON_LORD;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.data.Progress;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.items.IronDoor;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.WorldGameTypes;
@@ -50,7 +49,7 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class SkeletonLord extends GameEntity {
+public class SkeletonLord extends Actor {
 
   static int SHOOT_INTERVAL = 60;
   static int MOVE_TOWARDS_PLAYER_INTERVAL = 60;
@@ -68,7 +67,7 @@ public class SkeletonLord extends GameEntity {
     speed = defaultSpeed;
     maxLife = 60;
     currentLife = maxLife;
-    type = WorldGameTypes.MONSTER;
+    monster = true;
     attack = 14;
     attackValue = 18;
     defense = 2;
@@ -89,7 +88,7 @@ public class SkeletonLord extends GameEntity {
     secondAttackMotionDuration = 50;
     getImage();
     getAttackImage();
-    dialogues = TextManager.getAllDialoguesForTarget(SKELETON_LORD.getDialogueKey());
+    setDialogues(TextManager.getAllDialoguesForTarget(SKELETON_LORD.getDialogueKey()));
   }
 
   private void getImage() {
@@ -113,40 +112,40 @@ public class SkeletonLord extends GameEntity {
   }
 
   private void loadImages(String skeletonLordUp1, String skeletonLordUp2, String skeletonLordDown1, String skeletonLordDown2, String skeletonLordLeft1, String skeletonLordLeft2, String skeletonLordRight1, String skeletonLordRight2) {
-    up1 = setup(skeletonLordUp1, widthHeight, widthHeight);
-    up2 = setup(skeletonLordUp2, widthHeight, widthHeight);
-    down1 = setup(skeletonLordDown1, widthHeight, widthHeight);
-    down2 = setup(skeletonLordDown2, widthHeight, widthHeight);
-    left1 = setup(skeletonLordLeft1, widthHeight, widthHeight);
-    left2 = setup(skeletonLordLeft2, widthHeight, widthHeight);
-    right1 = setup(skeletonLordRight1, widthHeight, widthHeight);
-    right2 = setup(skeletonLordRight2, widthHeight, widthHeight);
+    up1 = SpriteLoader.load(skeletonLordUp1, widthHeight, widthHeight);
+    up2 = SpriteLoader.load(skeletonLordUp2, widthHeight, widthHeight);
+    down1 = SpriteLoader.load(skeletonLordDown1, widthHeight, widthHeight);
+    down2 = SpriteLoader.load(skeletonLordDown2, widthHeight, widthHeight);
+    left1 = SpriteLoader.load(skeletonLordLeft1, widthHeight, widthHeight);
+    left2 = SpriteLoader.load(skeletonLordLeft2, widthHeight, widthHeight);
+    right1 = SpriteLoader.load(skeletonLordRight1, widthHeight, widthHeight);
+    right2 = SpriteLoader.load(skeletonLordRight2, widthHeight, widthHeight);
   }
 
   private void loadAttackImages(String skeletonLordAttackUp1, String skeletonLordAttackUp2, String skeletonLordAttackDown1, String skeletonLordAttackDown2, String skeletonLordAttackLeft1, String skeletonLordAttackLeft2, String skeletonLordAttackRight1, String skeletonLordAttackRight2) {
-    attackUp1 = setup(skeletonLordAttackUp1, widthHeight, widthHeight * 2);
-    attackUp2 = setup(skeletonLordAttackUp2, widthHeight, widthHeight * 2);
-    attackDown1 = setup(skeletonLordAttackDown1, widthHeight, widthHeight * 2);
-    attackDown2 = setup(skeletonLordAttackDown2, widthHeight, widthHeight * 2);
-    attackLeft1 = setup(skeletonLordAttackLeft1, widthHeight * 2, widthHeight);
-    attackLeft2 = setup(skeletonLordAttackLeft2, widthHeight * 2, widthHeight);
-    attackRight1 = setup(skeletonLordAttackRight1, widthHeight * 2, widthHeight);
-    attackRight2 = setup(skeletonLordAttackRight2, widthHeight * 2, widthHeight);
+    attackUp1 = SpriteLoader.load(skeletonLordAttackUp1, widthHeight, widthHeight * 2);
+    attackUp2 = SpriteLoader.load(skeletonLordAttackUp2, widthHeight, widthHeight * 2);
+    attackDown1 = SpriteLoader.load(skeletonLordAttackDown1, widthHeight, widthHeight * 2);
+    attackDown2 = SpriteLoader.load(skeletonLordAttackDown2, widthHeight, widthHeight * 2);
+    attackLeft1 = SpriteLoader.load(skeletonLordAttackLeft1, widthHeight * 2, widthHeight);
+    attackLeft2 = SpriteLoader.load(skeletonLordAttackLeft2, widthHeight * 2, widthHeight);
+    attackRight1 = SpriteLoader.load(skeletonLordAttackRight1, widthHeight * 2, widthHeight);
+    attackRight2 = SpriteLoader.load(skeletonLordAttackRight2, widthHeight * 2, widthHeight);
   }
 
   @Override
   public void checkDrop() {
-    gamePanel.setBossBattleOn(false);
-    Progress.skeletonLordDefeated = true;
+    gamePanel.getWorld().setBossBattleOn(false);
+    gamePanel.getWorld().setSkeletonLordDefeated(true);
 
-    gamePanel.stopMusic();
-    gamePanel.playMusic(DUNGEON_SONG);
+    gamePanel.stopBGM();
+    gamePanel.playBGM(DUNGEON_SONG);
 
-    var objects = gamePanel.getMapsObjects().get(CURRENT_MAP);
+    var objects = gamePanel.getWorld().currentObjects();
     if (objects == null) return;
 
     objects.removeIf(object -> object instanceof IronDoor);
-    gamePanel.playSoundEffect(DOOR_OPEN);
+    gamePanel.playSE(DOOR_OPEN);
   }
 
   @Override

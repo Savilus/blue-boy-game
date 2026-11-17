@@ -4,7 +4,6 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.config.GameEntityNameFactory.BIGROCK;
 import static org.savilusGame.config.GameEntityNameFactory.DOOR_OPEN;
 import static org.savilusGame.config.GameEntityNameFactory.UNLOCK;
-import static org.savilusGame.tile.TileManager.CURRENT_MAP;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -14,18 +13,26 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.interactiveTile.InteractiveTile;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.GameObject;
-import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
 
-public class BigRock extends GameEntity {
+public class BigRock extends Actor {
 
   private static final String BIG_ROCK_DIALOGUES_KEY = "bigRock";
   private static final String USE = "use";
   private static final int LINKED_OBJECTS_DISTANCE = 12;
+
+  /** The metal plate this rock is currently linked to, if any. */
+  private InteractiveTile linkedEntity;
+
+  public InteractiveTile getLinkedEntity() {
+    return linkedEntity;
+  }
 
   public BigRock(GamePanel gamePanel) {
     super(gamePanel);
@@ -33,9 +40,8 @@ public class BigRock extends GameEntity {
     name = GameObject.BIG_ROCK.getName();
     direction = Direction.DOWN;
     speed = 4;
-    type = WorldGameTypes.OBSTACLE;
     getImage();
-    dialogues = TextManager.getItemTexts(BIG_ROCK_DIALOGUES_KEY);
+    setDialogues(TextManager.getItemTexts(BIG_ROCK_DIALOGUES_KEY));
 
     solidArea = new Rectangle();
     solidArea.x = 2;
@@ -47,15 +53,16 @@ public class BigRock extends GameEntity {
   }
 
   private void detectPlate() {
-    var currentMap = gamePanel.getMapsInteractiveTiles().get(CURRENT_MAP);
+    var currentMap = gamePanel.getWorld().currentInteractiveTiles();
 
     List<InteractiveTile> plateList = currentMap.stream()
         .filter(Objects::nonNull)
         .filter(tile -> StringUtils.equals(GameObject.METAL_PLATE.getName(), tile.getName()))
         .toList();
 
-    List<GameEntity> rockList = gamePanel.getMapsNpc().get(CURRENT_MAP).stream()
-        .filter(npc -> StringUtils.equals(GameObject.BIG_ROCK.getName(), npc.getName()))
+    List<BigRock> rockList = gamePanel.getWorld().currentNpc().stream()
+        .filter(BigRock.class::isInstance)
+        .map(BigRock.class::cast)
         .toList();
 
     for (InteractiveTile plate : plateList) {
@@ -64,7 +71,7 @@ public class BigRock extends GameEntity {
       if (distance < LINKED_OBJECTS_DISTANCE) {
         if (Objects.isNull(linkedEntity)) {
           linkedEntity = plate;
-          gamePanel.playSoundEffect(UNLOCK);
+          gamePanel.playSE(UNLOCK);
         }
       } else if (linkedEntity == plate) {
         linkedEntity = null;
@@ -76,14 +83,14 @@ public class BigRock extends GameEntity {
         .count();
 
     if (linkedRocks == rockList.size()) {
-      var objects = gamePanel.getMapsObjects().get(CURRENT_MAP);
+      var objects = gamePanel.getWorld().currentObjects();
       for (int doorQuantity = 0; doorQuantity < objects.size(); doorQuantity++) {
         var object = objects.get(doorQuantity);
         if (Objects.nonNull(object) &&
             GameObject.IRON_DOOR.getName().equals(object.getName())) {
 
           objects.remove(doorQuantity);
-          gamePanel.playSoundEffect(DOOR_OPEN);
+          gamePanel.playSE(DOOR_OPEN);
           break;
         }
       }
@@ -91,14 +98,14 @@ public class BigRock extends GameEntity {
   }
 
   private void getImage() {
-    up1 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    up2 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down1 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down2 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left1 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left2 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right1 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right2 = setup(BIGROCK, TILE_SIZE, TILE_SIZE);
+    up1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    up2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    down1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    down2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    left1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    left2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    right1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    right2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

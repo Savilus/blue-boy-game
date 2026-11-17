@@ -8,7 +8,8 @@ import static org.savilusGame.enums.WorldGameTypes.PICKAXE;
 import java.awt.*;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.utils.SpriteLoader;
 
 public class DestructibleWall extends InteractiveTile {
 
@@ -18,7 +19,7 @@ public class DestructibleWall extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    mainImage = setup(DESTRUCTIBLE_WALL, TILE_SIZE, TILE_SIZE);
+    mainImage = SpriteLoader.load(DESTRUCTIBLE_WALL, TILE_SIZE, TILE_SIZE);
     setDestructible(true);
   }
 
@@ -44,12 +45,12 @@ public class DestructibleWall extends InteractiveTile {
 
   @Override
   public void playSoundEffect() {
-    gamePanel.playSoundEffect(CHIP_WALL);
+    gamePanel.playSE(CHIP_WALL);
   }
 
   @Override
-  public boolean isCorrectItem(GameEntity item) {
-    return item.getCurrentWeapon().getType() == PICKAXE;
+  public boolean isCorrectItem(Actor actor) {
+    return actor.getCurrentWeapon().getType() == PICKAXE;
   }
 }
 

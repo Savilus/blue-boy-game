@@ -6,31 +6,30 @@ import static org.savilusGame.config.GameEntityNameFactory.MANA_CRYSTAL_FULL;
 import static org.savilusGame.config.GameEntityNameFactory.POWER_UP;
 
 import org.savilusGame.GamePanel;
-import org.savilusGame.entity.GameEntity;
+import org.savilusGame.entity.Actor;
+import org.savilusGame.entity.item.Item;
+import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
 
-public class ManaCrystal extends GameEntity {
+public class ManaCrystal extends Item {
 
   private static final String MANA = "mana";
   private static final String UI_MESSAGES = "uiMessages";
 
   public ManaCrystal(GamePanel gamePanel) {
-    super(gamePanel);
+    super(gamePanel, GameObject.MANA_CRYSTAL);
     type = WorldGameTypes.PICK_UP;
-    name = GameObject.MANA_CRYSTAL.getName();
     value = 1;
-    down1 = setup(MANA_CRYSTAL_FULL, TILE_SIZE, TILE_SIZE);
-    mainImage = setup(MANA_CRYSTAL_FULL, TILE_SIZE, TILE_SIZE);
-    mainImage2 = setup(MANA_CRYSTAL_BLANK, TILE_SIZE, TILE_SIZE);
+    icon = SpriteLoader.load(MANA_CRYSTAL_FULL, TILE_SIZE, TILE_SIZE);
   }
 
   @Override
-  public boolean use(GameEntity entity) {
-    gamePanel.playSoundEffect(POWER_UP);
+  public boolean use(Actor user) {
+    gamePanel.playSE(POWER_UP);
     gamePanel.getUi().addMessage(TextManager.getUiText(UI_MESSAGES, MANA) + value);
-    entity.setMana(entity.getMana() + value);
+    user.setMana(user.getMana() + value);
     return true;
   }
 }
