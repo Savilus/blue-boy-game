@@ -43,15 +43,16 @@ import org.savilusGame.entity.weapon.Axe;
 import org.savilusGame.entity.weapon.NormalSword;
 import org.savilusGame.entity.weapon.PickAxe;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.utils.text.TextManager;
 
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 /**
  * Creates fresh items and world objects for save-game restore and inventory re-creation.
- * <p>Lookups prefer the stable {@link GameObject} enum constant and also accept localized
- * names for importing older saves (legacy doors were stored under {@code DOOR}).
- * Unknown names resolve to {@code null} so load paths can skip stale entries instead of crashing.
+ * <p>Lookups prefer the stable {@link GameObject} enum constant (current saves) and also accept
+ * localized display names for importing legacy saves that stored the visible name. Unknown names
+ * resolve to {@code null} so load paths can skip stale entries instead of crashing.
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GameEntityFactory {
@@ -91,20 +92,27 @@ public class GameEntityFactory {
     return type != null && itemMap.containsKey(type);
   }
 
+  /**
+   * Stable id first, localized name only as the legacy-save fallback. The localized comparison
+   * lives here, next to the migration it serves, instead of inside the {@link GameObject} enum.
+   */
   private GameObject resolve(String storedName) {
     if (storedName == null) {
       return null;
     }
+    String candidate = storedName.trim();
     for (GameObject type : GameObject.values()) {
-      if (type.name().equalsIgnoreCase(storedName)) {
+      if (type.name().equalsIgnoreCase(candidate)) {
         return type;
       }
     }
-    try {
-      return GameObject.getObjectFromName(storedName);
-    } catch (IllegalArgumentException ignored) {
-      return null;
+    for (GameObject type : GameObject.values()) {
+      if (TextManager.hasItemTexts(type.getTextKey())
+          && TextManager.getItemName(type.getTextKey()).equalsIgnoreCase(candidate)) {
+        return type;
+      }
     }
+    return null;
   }
 
   private void initMaps() {

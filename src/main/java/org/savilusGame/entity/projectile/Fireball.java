@@ -16,12 +16,13 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.utils.text.TextManager;
 
 public class Fireball extends Projectile {
 
   public Fireball(GamePanel gamePanel) {
     super(gamePanel);
-    name = GameObject.FIREBALL.getName();
+    name = TextManager.getItemName(GameObject.FIREBALL.getTextKey());
     speed = 5;
     maxLife = 80;
     currentLife = maxLife;

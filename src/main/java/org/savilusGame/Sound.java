@@ -82,7 +82,9 @@ public class Sound {
   }
 
   protected void stop() {
-    clip.stop();
+    if (clip != null) {
+      clip.stop();
+    }
   }
 
   public void checkVolume() {

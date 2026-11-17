@@ -17,27 +17,34 @@ import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
 
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.util.Objects;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.Sound;
+import org.savilusGame.config.DevMode;
+import org.savilusGame.entity.Player;
 
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class KeyHandler implements KeyListener {
 
   final GamePanel gamePanel;
+  final DevMode devMode;
   boolean upPressed, downPressed, leftPressed, rightPressed, enterPressed, spacePressed, shotKeyPressed;
-  //DEBUG
+  //DEBUG (only reachable when DevMode is enabled)
   boolean showDebugText;
   boolean godModeOn = false;
+
+  public KeyHandler(GamePanel gamePanel, DevMode devMode) {
+    this.gamePanel = Objects.requireNonNull(gamePanel);
+    this.devMode = Objects.requireNonNull(devMode);
+  }
 
   private void titleState(int code) {
     switch (code) {
@@ -71,7 +78,7 @@ public class KeyHandler implements KeyListener {
           }
         }
         if (gamePanel.getUi().getCommandNum() == 2) {
-          System.exit(0);
+          gamePanel.quitGame();
         }
       }
     }
@@ -100,12 +107,27 @@ public class KeyHandler implements KeyListener {
       }
       case KeyEvent.VK_M -> gamePanel.setGameState(MAP_STATE);
       case KeyEvent.VK_X -> gamePanel.getGameMap().setMiniMapOn(!gamePanel.getGameMap().isMiniMapOn());
-      case KeyEvent.VK_G -> godModeOn = !godModeOn;
-
-      //DEBUG
-      case KeyEvent.VK_T -> showDebugText = !showDebugText;
-      //REFRESH MAP
-      case KeyEvent.VK_R -> gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
+      case KeyEvent.VK_CONTROL -> {
+        if (devMode.enabled()) {
+          gamePanel.getTileManager().togglePathVisibility();
+        }
+      }
+      // DEVELOPMENT-ONLY KEYS: inactive unless dev.enabled is true in config.yml.
+      case KeyEvent.VK_G -> {
+        if (devMode.enabled()) {
+          godModeOn = !godModeOn;
+        }
+      }
+      case KeyEvent.VK_T -> {
+        if (devMode.enabled()) {
+          showDebugText = !showDebugText;
+        }
+      }
+      case KeyEvent.VK_R -> {
+        if (devMode.enabled()) {
+          gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
+        }
+      }
     }
   }
 
@@ -138,13 +160,13 @@ public class KeyHandler implements KeyListener {
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
-        if (gamePanel.getUi().getPlayerSlotRow() != 3) {
+        if (gamePanel.getUi().getPlayerSlotRow() != Player.INVENTORY_ROWS - 1) {
           gamePanel.getUi().setPlayerSlotRow(gamePanel.getUi().getPlayerSlotRow() + 1);
           gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
-        if (gamePanel.getUi().getPlayerSlotCol() != 4) {
+        if (gamePanel.getUi().getPlayerSlotCol() != Player.INVENTORY_COLUMNS - 1) {
           gamePanel.getUi().setPlayerSlotCol(gamePanel.getUi().getPlayerSlotCol() + 1);
           gamePanel.playSE(CURSOR);
         }
@@ -167,13 +189,13 @@ public class KeyHandler implements KeyListener {
         }
       }
       case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
-        if (gamePanel.getUi().getNpcSlotRow() != 3) {
+        if (gamePanel.getUi().getNpcSlotRow() != Player.INVENTORY_ROWS - 1) {
           gamePanel.getUi().setNpcSlotRow(gamePanel.getUi().getNpcSlotRow() + 1);
           gamePanel.playSE(CURSOR);
         }
       }
       case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
-        if (gamePanel.getUi().getNpcSlotCol() != 4) {
+        if (gamePanel.getUi().getNpcSlotCol() != Player.INVENTORY_COLUMNS - 1) {
           gamePanel.getUi().setNpcSlotCol(gamePanel.getUi().getNpcSlotCol() + 1);
           gamePanel.playSE(CURSOR);
         }

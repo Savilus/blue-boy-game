@@ -1,5 +1,8 @@
 package org.savilusGame;
 
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
 import javax.swing.*;
 
 public class Main {
@@ -10,12 +13,19 @@ public class Main {
 
   static void main() {
     window = new JFrame();
-    window.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+    // Closing the window goes through the same cleanup path as "Quit" in the title menu.
+    window.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
     window.setResizable(false);
     window.setTitle(GAME_TITLE);
 
     GamePanel gamePanel = new GamePanel();
     window.add(gamePanel);
+    window.addWindowListener(new WindowAdapter() {
+      @Override
+      public void windowClosing(WindowEvent event) {
+        gamePanel.quitGame();
+      }
+    });
     gamePanel.getConfig().loadConfig();
 
     if (gamePanel.isFullScreenOn()) {

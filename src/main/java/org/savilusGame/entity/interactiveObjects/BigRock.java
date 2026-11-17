@@ -33,7 +33,7 @@ public class BigRock extends Actor {
   public BigRock(GamePanel gamePanel) {
     super(gamePanel);
 
-    name = GameObject.BIG_ROCK.getName();
+    name = TextManager.getItemName(GameObject.BIG_ROCK.getTextKey());
     direction = Direction.DOWN;
     speed = 4;
     getImage();

@@ -7,6 +7,7 @@ import static org.savilusGame.config.GameEntityNameFactory.INTERIOR_MAP;
 import static org.savilusGame.config.GameEntityNameFactory.MAIN_MAP;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,23 +43,34 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Takes and restores player and per-map snapshots. The save is decoded and validated,
- * including object construction, before any live game state is changed.
+ * including object construction, before any live game state is changed; if applying the
+ * prepared save still fails, the captured {@link LiveStateBackup} puts the previous state back.
  */
 @Slf4j
 public class SaveLoad {
+  static final String SAVE_FILE_NAME = "save.json";
+  static final String LEGACY_SAVE_FILE_NAME = "save.dat";
+
   private final GamePanel gamePanel;
   private final SaveFile file;
-  private final Path legacyPath;
+  private final List<Path> legacyPaths;
 
   public SaveLoad(GamePanel gamePanel) {
-    this(gamePanel, Path.of(System.getProperty("user.home"), ".blue-boy", "save.json"),
-        Path.of("save.dat"));
+    // New saves live in the per-user data directory. The working directory is only consulted
+    // for the one-time import of a legacy save.dat written by older builds.
+    this(gamePanel, UserDataDirectory.resolve().resolve(SAVE_FILE_NAME),
+        List.of(UserDataDirectory.resolve().resolve(LEGACY_SAVE_FILE_NAME),
+            Path.of(LEGACY_SAVE_FILE_NAME)));
   }
 
   SaveLoad(GamePanel gamePanel, Path savePath, Path legacyPath) {
+    this(gamePanel, savePath, List.of(legacyPath));
+  }
+
+  SaveLoad(GamePanel gamePanel, Path savePath, List<Path> legacyPaths) {
     this.gamePanel = Objects.requireNonNull(gamePanel);
     this.file = new SaveFile(savePath);
-    this.legacyPath = legacyPath;
+    this.legacyPaths = List.copyOf(legacyPaths);
   }
 
   public boolean save() {
@@ -80,7 +92,7 @@ public class SaveLoad {
       if (!importingLegacy) {
         save = file.read();
       } else {
-        save = LegacySaveImporter.read(legacyPath, snapshot(), gamePanel);
+        save = LegacySaveImporter.read(existingLegacySave(), snapshot(), gamePanel);
       }
       prepared = prepare(save);
       if (importingLegacy) {
@@ -91,14 +103,31 @@ public class SaveLoad {
       gamePanel.getUi().addMessage(TextManager.getUiText("uiMessages", "loadFailed"));
       return false;
     }
+    LiveStateBackup backup = null;
     try {
+      backup = LiveStateBackup.capture(gamePanel);
       apply(prepared);
       return true;
-    } catch (IllegalArgumentException | IllegalStateException error) {
-      log.error("Unable to apply loaded game; game state may be partially changed", error);
+    } catch (RuntimeException error) {
+      log.error("Unable to apply the loaded game; restoring the previous state", error);
+      if (backup != null) {
+        try {
+          backup.restore();
+        } catch (RuntimeException restoreError) {
+          log.error("Could not fully restore the previous game state after a failed load", restoreError);
+        }
+      }
       gamePanel.getUi().addMessage(TextManager.getUiText("uiMessages", "loadFailed"));
       return false;
     }
+  }
+
+  /** First legacy save that exists, or the preferred location so the error names a real path. */
+  private Path existingLegacySave() {
+    return legacyPaths.stream()
+        .filter(Files::exists)
+        .findFirst()
+        .orElse(legacyPaths.getFirst());
   }
 
   private SaveGame snapshot() {

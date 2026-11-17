@@ -84,6 +84,14 @@ legacy exceptions in the tree, the exception is documented in
   (`isCollision`, `isKnockBack`, `isTemporaryObject`).
 * Package-private by default; `public` is a deliberate API decision at the
   seam level, never on implementation details.
+* Keep fields in a consistent order within each class: group by visibility
+  (`public`, `protected`, package-private, `private`); within each group put
+  `String` fields first, then other `static` fields (constants before mutable
+  fields), then instance reference fields, and finally primitive fields.
+  Keep fields with related responsibilities together within a group.
+* Order methods in each class by visibility: `public`, `protected`,
+  package-private, then `private`. In every iteration, check the code being
+  changed for compliance with this method order and update it when needed.
 
 ## 6. Documentation & Status Tracking
 

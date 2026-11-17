@@ -54,7 +54,7 @@ public class Item implements DialogueSpeaker {
   protected Item(GamePanel gamePanel, GameObject gameObject) {
     this.gamePanel = gamePanel;
     this.id = gameObject.name();
-    this.name = gameObject.getName();
+    this.name = TextManager.getItemName(gameObject.getTextKey());
     this.setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
 

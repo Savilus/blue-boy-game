@@ -55,7 +55,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -94,7 +93,14 @@ public class Player extends Actor {
   static final String EXP_UI_MESSAGE = "expUiMessage";
   static final String INVENTORY_FULL = "inventoryFull";
   static final String EVENT_MESSAGES_KEY = "eventMessages";
-  static final int MAX_INVENTORY_SIZE = 20;
+  /** Inventory grid width; the UI layout and the cursor navigation read it from here. */
+  public static final int INVENTORY_COLUMNS = 5;
+  /** Inventory grid height; the UI layout and the cursor navigation read it from here. */
+  public static final int INVENTORY_ROWS = 4;
+  /** The single inventory limit: exactly the slots the grid can show. */
+  static final int MAX_INVENTORY_SIZE = INVENTORY_COLUMNS * INVENTORY_ROWS;
+  static final int NEXT_LEVEL_EXP_STEP = 5;
+  static final int LEVEL_UP_LIFE_BONUS = 2;
 
   final KeyHandler keyHandler;
 
@@ -195,7 +201,6 @@ public class Player extends Actor {
     down1 = SpriteLoader.load(BOY_DOWN1, TILE_SIZE, TILE_SIZE);
     down2 = SpriteLoader.load(BOY_DOWN2, TILE_SIZE, TILE_SIZE);
     left1 = SpriteLoader.load(BOY_LEFT1, TILE_SIZE, TILE_SIZE);
-    up1 = SpriteLoader.load(BOY_UP1, TILE_SIZE, TILE_SIZE);
     left2 = SpriteLoader.load(BOY_LEFT2, TILE_SIZE, TILE_SIZE);
     right1 = SpriteLoader.load(BOY_RIGHT1, TILE_SIZE, TILE_SIZE);
     right2 = SpriteLoader.load(BOY_RIGHT2, TILE_SIZE, TILE_SIZE);
@@ -316,8 +321,7 @@ public class Player extends Actor {
       monster.setDying(true);
       gamePanel.getUi().addMessage(String.format(TextManager.getUiText(UI_MESSAGE, KILLED_UI_MESSAGE), monster.getName()));
       gamePanel.getUi().addMessage(String.format(TextManager.getUiText(UI_MESSAGE, EXP_UI_MESSAGE), monster.getExp()));
-      exp += monster.getExp();
-      checkLevelUp();
+      gainExperience(monster.getExp());
     }
   }
 
@@ -394,21 +398,39 @@ public class Player extends Actor {
     itemDrops.remove(itemIndex);
   }
 
+  /**
+   * Adds experience and resolves every level the reward pays for. Experience beyond the
+   * current requirement is kept for the next level instead of being discarded, and a single
+   * large reward can therefore grant several levels.
+   */
+  void gainExperience(int amount) {
+    if (amount <= 0) {
+      return;
+    }
+    exp += amount;
+    checkLevelUp();
+  }
+
   private void checkLevelUp() {
-    if (exp >= nextLevelExp) {
+    boolean leveledUp = false;
+    while (exp >= nextLevelExp) {
+      exp -= nextLevelExp;
       level++;
-      nextLevelExp = nextLevelExp + 5;
-      exp = 0;
-      maxLife += 2;
+      nextLevelExp += NEXT_LEVEL_EXP_STEP;
+      maxLife += LEVEL_UP_LIFE_BONUS;
       strength++;
       dexterity++;
-      attack = getAttack();
-      defense = getDefense();
-      gamePanel.playSE(LEVEL_UP);
-      gamePanel.setGameState(DIALOG_STATE);
-
-      startDialogue(this, LVL_UP);
+      leveledUp = true;
     }
+    if (!leveledUp) {
+      return;
+    }
+    attack = getAttack();
+    defense = getDefense();
+    gamePanel.playSE(LEVEL_UP);
+    gamePanel.setGameState(DIALOG_STATE);
+
+    startDialogue(this, LVL_UP);
   }
 
   private void interactNPC(int npcIndex) {
@@ -467,30 +489,9 @@ public class Player extends Actor {
   @Override
   public void update() {
     if (knockBack) {
-      // CHECK TILE COLLISION
-      collisionOn = false;
-      gamePanel.getCollisionDetector().checkTile(this);
-      gamePanel.getCollisionDetector().checkObject(this, true);
-      gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentNpc());
-      gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
-      if (Objects.nonNull(gamePanel.getWorld().currentInteractiveTiles())) {
-        gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentInteractiveTiles());
-      }
-
-      if (!collisionOn) {
-        switch (knockBackDirection) {
-          case UP -> worldY -= speed;
-          case DOWN -> worldY += speed;
-          case LEFT -> worldX -= speed;
-          case RIGHT -> worldX += speed;
-        }
-      }
-      knockBackCounter++;
-      if (knockBackCounter == 5 || collisionOn) {
-        knockBackCounter = 0;
-        knockBack = false;
-        speed = defaultSpeed;
-      }
+      // Same collision set and the same knockback step as every other actor (Actor.updateKnockBack).
+      resolveWorldCollisions(true);
+      updateKnockBack();
     } else if (attacking) {
       attacking();
     } else if (keyHandler.isSpacePressed()) {

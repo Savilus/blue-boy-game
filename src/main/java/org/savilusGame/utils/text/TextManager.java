@@ -16,9 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 @UtilityClass
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class TextManager {
-  static String DIALOGUES_PATH = "src/main/resources/texts/dialogues";
-  static String PLAYER_AND_ITEMS_INFO_PATH = "src/main/resources/texts/itemsInformation";
-  static String SETTINGS_AND_UI_TEXTS_PATH = "src/main/resources/texts/settingsAndUI";
   static String DESCRIPTION = "description";
   static String USE = "use";
   static String OPEN_DOOR = "openDoor";
@@ -27,35 +24,38 @@ public class TextManager {
   static String NAME = "name";
   static String EVENT_MESSAGES_KEY = "eventMessages";
 
+  // Loaded once, at class initialisation, from the classpath (see TextLoader). A packaging or
+  // data problem therefore fails immediately with the offending resource name.
   @Getter
-  Map<String, Map<String, List<String>>> dialogues = TextLoader.loadAllDialogues(DIALOGUES_PATH);
+  Map<String, Map<String, List<String>>> dialogues = TextLoader.loadAllDialogues();
   @Getter
-  Map<String, Map<String, String>> items = TextLoader.loadItemsInformation(PLAYER_AND_ITEMS_INFO_PATH);
+  Map<String, Map<String, String>> items = TextLoader.loadItemsInformation();
   @Getter
-  Map<String, Map<String, String>> settingsAndUI = TextLoader.loadSettingsAndUITexts(SETTINGS_AND_UI_TEXTS_PATH);
+  Map<String, Map<String, String>> settingsAndUI = TextLoader.loadSettingsAndUITexts();
 
-  static Map<String, String> formatKeys = new HashMap<>();
-
-  static {
-    // Keyed by the textKey values of GameObject.CHEST / RED_POTION / KEY (kept as literals on
-    // purpose: TextManager must not depend on the GameObject class-init order, since the
-    // GameObject constructor itself calls TextManager.getItemName).
-    formatKeys.put("chest", COLLECT_ITEM);
-    formatKeys.put("redPotion", USE);
-    formatKeys.put("key", OPEN_DOOR);
-    formatKeys.put(EVENT_MESSAGES_KEY, LVL_UP);
-  }
+  // Keyed by the textKey values of GameObject.CHEST / RED_POTION / KEY (kept as literals on
+  // purpose: the keys are an API contract with the bundled texts and must match exactly).
+  static Map<String, String> FORMAT_KEYS = Map.of(
+      "chest", COLLECT_ITEM,
+      "redPotion", USE,
+      "key", OPEN_DOOR,
+      EVENT_MESSAGES_KEY, LVL_UP);
 
   public String getSettingText(String settingField, String settingName) {
-    return settingsAndUI.get(settingField).get(settingName);
+    return requireText(requireGroup(settingsAndUI, settingField), settingField, settingName);
   }
 
   public String getUiText(String uiField, String uiTextKey) {
-    return settingsAndUI.get(uiField).get(uiTextKey);
+    return requireText(requireGroup(settingsAndUI, uiField), uiField, uiTextKey);
   }
 
   public String getItemName(String itemTextKey) {
-    return items.get(itemTextKey).get(NAME);
+    return requireText(requireGroup(items, itemTextKey), itemTextKey, NAME);
+  }
+
+  /** Whether the bundled item texts contain an entry for {@code itemTextKey}. */
+  public boolean hasItemTexts(String itemTextKey) {
+    return items.containsKey(itemTextKey);
   }
 
   public Map<String, List<String>> getAllDialoguesForTarget(String target) {
@@ -73,8 +73,8 @@ public class TextManager {
     }
     Map<String, String> itemTexts = new HashMap<>(originalItemTexts);
 
-    if (formatKeys.containsKey(itemTextKey)) {
-      String formatKey = formatKeys.get(itemTextKey);
+    if (FORMAT_KEYS.containsKey(itemTextKey)) {
+      String formatKey = FORMAT_KEYS.get(itemTextKey);
       if (itemTexts.containsKey(formatKey)) {
         if (Objects.nonNull(replacements) && replacements.length > 0) {
           itemTexts.put(formatKey, String.format(itemTexts.get(formatKey), replacements));
@@ -89,7 +89,23 @@ public class TextManager {
   }
 
   public String getItemDescription(String itemTextKey) {
-    return items.get(itemTextKey).get(DESCRIPTION);
+    return requireText(requireGroup(items, itemTextKey), itemTextKey, DESCRIPTION);
   }
 
+  private static Map<String, String> requireGroup(Map<String, Map<String, String>> texts, String groupKey) {
+    Map<String, String> group = texts.get(groupKey);
+    if (group == null) {
+      throw new IllegalStateException("Missing text group '" + groupKey + "' in the bundled texts");
+    }
+    return group;
+  }
+
+  private static String requireText(Map<String, String> group, String groupKey, String textKey) {
+    String text = group.get(textKey);
+    if (text == null) {
+      throw new IllegalStateException(
+          "Missing text '" + textKey + "' in text group '" + groupKey + "'");
+    }
+    return text;
+  }
 }

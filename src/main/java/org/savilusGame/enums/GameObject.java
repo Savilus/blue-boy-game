@@ -1,11 +1,16 @@
 package org.savilusGame.enums;
 
-
-import org.apache.commons.lang3.StringUtils;
-import org.savilusGame.utils.text.TextManager;
-
 import lombok.Getter;
 
+/**
+ * Stable identities of the game's items and world objects.
+ * <p>The enum constant is the locale-independent id used by saves and by identity checks;
+ * {@code textKey} addresses the display texts in {@link org.savilusGame.utils.text.TextManager}.
+ * <p>The enum deliberately holds data only: loading it must never read text files, touch another
+ * class's static initialiser or perform I/O — that is what made class initialisation failure
+ * indistinguishable from a packaging problem. Display names are resolved through
+ * {@code TextManager.getItemName(textKey)} at the call site.
+ */
 @Getter
 public enum GameObject {
   // GAME ITEMS
@@ -39,21 +44,9 @@ public enum GameObject {
   METAL_PLATE("metalPlate"),
   BIG_ROCK("bigRock");
 
-  private final String name;
   private final String textKey;
 
   GameObject(String textKey) {
     this.textKey = textKey;
-    name = TextManager.getItemName(textKey);
-  }
-
-  public static GameObject getObjectFromName(String name) {
-    for (GameObject type : GameObject.values()) {
-      if (StringUtils.equalsIgnoreCase(type.name, name)) {
-        return type;
-      }
-    }
-    throw new IllegalArgumentException("Unknown game object: " + name);
   }
 }
-

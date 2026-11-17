@@ -6,6 +6,7 @@ import static org.savilusGame.config.GameEntityNameFactory.METAL_PLATE;
 import org.savilusGame.GamePanel;
 import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.utils.text.TextManager;
 
 public class MetalPlate extends InteractiveTile {
 
@@ -16,7 +17,7 @@ public class MetalPlate extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    name = GameObject.METAL_PLATE.getName();
+    name = TextManager.getItemName(GameObject.METAL_PLATE.getTextKey());
     mainImage = SpriteLoader.load(METAL_PLATE, TILE_SIZE, TILE_SIZE);
 
     solidArea.x = 0;

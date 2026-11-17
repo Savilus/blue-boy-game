@@ -1,0 +1,17 @@
+{
+  "dialogues": [
+    "blueHeart.json",
+    "ending.json",
+    "eventMessages.json",
+    "merchantNpc.json",
+    "oldManNpc.json",
+    "skeletonLord.json"
+  ],
+  "itemsInformation": [
+    "items.json"
+  ],
+  "settingsAndUI": [
+    "settings.json",
+    "ui.json"
+  ]
+}
