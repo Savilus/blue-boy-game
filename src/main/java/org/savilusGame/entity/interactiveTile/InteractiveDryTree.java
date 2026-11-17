@@ -9,7 +9,6 @@ import java.awt.*;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 
 public class InteractiveDryTree extends InteractiveTile {
 
@@ -19,7 +18,7 @@ public class InteractiveDryTree extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    mainImage = SpriteLoader.load(DRY_TREE, TILE_SIZE, TILE_SIZE);
+    mainImage = sprites.get(DRY_TREE, TILE_SIZE, TILE_SIZE);
     setDestructible(true);
   }
 

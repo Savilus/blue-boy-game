@@ -9,7 +9,6 @@ import java.awt.*;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 
 public class DestructibleWall extends InteractiveTile {
 
@@ -19,7 +18,7 @@ public class DestructibleWall extends InteractiveTile {
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;
 
-    mainImage = SpriteLoader.load(DESTRUCTIBLE_WALL, TILE_SIZE, TILE_SIZE);
+    mainImage = sprites.get(DESTRUCTIBLE_WALL, TILE_SIZE, TILE_SIZE);
     setDestructible(true);
   }
 

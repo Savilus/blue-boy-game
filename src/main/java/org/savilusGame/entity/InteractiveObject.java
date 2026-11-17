@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.savilusGame.GamePanel;
+import org.savilusGame.utils.SpriteCache;
+import org.savilusGame.service.DepthDrawable;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.GameObject;
@@ -34,11 +36,13 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PROTECTED)
-public abstract class InteractiveObject implements CollisionBody, DialogueSpeaker, Interactable, ParticleSpec {
+public abstract class InteractiveObject implements DepthDrawable, CollisionBody, DialogueSpeaker, Interactable, ParticleSpec {
 
   private static final String EVENT_MESSAGES = "eventMessages";
 
   final GamePanel gamePanel;
+  @Getter(AccessLevel.NONE)
+  final SpriteCache sprites;
 
   String name;
   @Setter(AccessLevel.NONE)
@@ -46,7 +50,6 @@ public abstract class InteractiveObject implements CollisionBody, DialogueSpeake
   int worldX, worldY;
   Direction direction = ANY;
   Rectangle solidArea = new Rectangle(0, 0, 45, 45);
-  int solidAreaDefaultX, solidAreaDefaultY;
   boolean collision = false;
   boolean invincible = false;
   int invincibleCounter = 0;
@@ -67,6 +70,7 @@ public abstract class InteractiveObject implements CollisionBody, DialogueSpeake
 
   protected InteractiveObject(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
+    this.sprites = gamePanel.getSpriteCache();
     this.setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
 

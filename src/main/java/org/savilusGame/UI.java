@@ -1,7 +1,6 @@
 package org.savilusGame;
 
 import static org.savilusGame.config.GameEntityNameFactory.MARU_MONICA_FONT;
-import static org.savilusGame.config.GameEntityNameFactory.PURISA_BOLD_FONT;
 import static org.savilusGame.config.GameEntityNameFactory.SPEAK;
 import static org.savilusGame.enums.DayState.DAY;
 import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
@@ -35,7 +34,6 @@ import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.Player;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.service.DialogueSpeaker;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.SubState;
 import org.savilusGame.environment.Lighting;
 import org.savilusGame.utils.text.TextManager;
@@ -120,9 +118,11 @@ public class UI {
   final BufferedImage heartFull, heartHalf, heartBlank, manaCrystalFull, manaCrystalBlank, coin;
   final GamePanel gamePanel;
   Graphics2D graphics2D;
-  final Font maruMonica, purisaBoldFont;
+  final UiFonts fonts;
   final ArrayList<String> messages = new ArrayList<>();
   final ArrayList<Integer> messageCounter = new ArrayList<>();
+  final List<String> titleOptions = List.of(TextManager.getSettingText(MENU_OPTIONS, NEW_GAME),
+      TextManager.getSettingText(MENU_OPTIONS, LOAD_GAME), TextManager.getSettingText(MENU_OPTIONS, QUIT));
   DialogueSpeaker dialogueObject;
 
   int commandNum = 0;
@@ -138,20 +138,16 @@ public class UI {
 
   public UI(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
-    maruMonica = Try.of(() -> loadFont(MARU_MONICA_FONT))
-        .recover(ignored -> getDefaultFont())
-        .get();
-    purisaBoldFont = Try.of(() -> loadFont(PURISA_BOLD_FONT))
-        .recover(ignored -> getDefaultFont())
-        .get();
+    fonts = new UiFonts(Try.of(() -> loadFont(MARU_MONICA_FONT))
+        .recover(ignored -> getDefaultFont()).get());
 
     // HUD sprites
-    heartFull = SpriteLoader.load(HEART_FULL, TILE_SIZE, TILE_SIZE);
-    heartHalf = SpriteLoader.load(HEART_HALF, TILE_SIZE, TILE_SIZE);
-    heartBlank = SpriteLoader.load(HEART_BLANK, TILE_SIZE, TILE_SIZE);
-    manaCrystalFull = SpriteLoader.load(MANA_CRYSTAL_FULL, TILE_SIZE, TILE_SIZE);
-    manaCrystalBlank = SpriteLoader.load(MANA_CRYSTAL_BLANK, TILE_SIZE, TILE_SIZE);
-    coin = SpriteLoader.load(BRONZE_COIN, TILE_SIZE, TILE_SIZE);
+    heartFull = gamePanel.getSpriteCache().get(HEART_FULL, TILE_SIZE, TILE_SIZE);
+    heartHalf = gamePanel.getSpriteCache().get(HEART_HALF, TILE_SIZE, TILE_SIZE);
+    heartBlank = gamePanel.getSpriteCache().get(HEART_BLANK, TILE_SIZE, TILE_SIZE);
+    manaCrystalFull = gamePanel.getSpriteCache().get(MANA_CRYSTAL_FULL, TILE_SIZE, TILE_SIZE);
+    manaCrystalBlank = gamePanel.getSpriteCache().get(MANA_CRYSTAL_BLANK, TILE_SIZE, TILE_SIZE);
+    coin = gamePanel.getSpriteCache().get(BRONZE_COIN, TILE_SIZE, TILE_SIZE);
   }
 
   public void addMessage(String text) {
@@ -161,7 +157,7 @@ public class UI {
 
   public void draw(Graphics2D graphics2D) {
     this.graphics2D = graphics2D;
-    graphics2D.setFont(maruMonica);
+    graphics2D.setFont(fonts.getBase());
     graphics2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     graphics2D.setColor(Color.WHITE);
 
@@ -217,7 +213,7 @@ public class UI {
     graphics2D.fillRect(0, 0, gamePanel.getScreenWidth(), gamePanel.getScreenHeight());
 
     // SHADOW
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.BOLD, 110F));
+    graphics2D.setFont(fonts.getGameOver());
     graphics2D.setColor(Color.BLACK);
     int x = getXForCenteredText(TextManager.getUiText(UI_MESSAGES, GAME_OVER));
     int y = TILE_SIZE * 4;
@@ -228,7 +224,7 @@ public class UI {
     graphics2D.drawString(TextManager.getUiText(UI_MESSAGES, GAME_OVER), x - 4, y - 4);
 
     // RETRY
-    graphics2D.setFont(graphics2D.getFont().deriveFont(50F));
+    graphics2D.setFont(fonts.getRetry());
     x = getXForCenteredText(TextManager.getSettingText(MENU_OPTIONS, RETRY));
     y += TILE_SIZE * 4;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, RETRY), x, y);
@@ -245,7 +241,7 @@ public class UI {
 
   private void drawOptionsScreen() {
     graphics2D.setColor(Color.WHITE);
-    graphics2D.setFont(graphics2D.getFont().deriveFont(32F));
+    graphics2D.setFont(fonts.getLabel());
 
     // SUB WINDOW
     int frameX = TILE_SIZE * 6;
@@ -354,7 +350,7 @@ public class UI {
           subState = DEFAULT;
           gamePanel.setGameState(DIALOG_STATE);
           dialogueObject.startDialogue(dialogueObject, MERCHANT_NO_MONEY_DIALOGUE_KEY);
-        } else if (!gamePanel.getPlayer().canObtainItem(tradingMerchant.getInventory().get(itemIndex))) {
+        } else if (!gamePanel.getPlayer().obtainFromStock(tradingMerchant.getInventory().get(itemIndex))) {
           subState = DEFAULT;
           dialogueObject.startDialogue(dialogueObject, MERCHANT_TO_MUCH_ITEMS_DIALOGUE_KEY);
         } else {
@@ -639,7 +635,7 @@ public class UI {
 
       // DISPLAY AMOUNT
       if (gameEntity == gamePanel.getPlayer() && gameEntity.getInventory().get(inventoryItem).getStackCount() > 1) {
-        graphics2D.setFont(graphics2D.getFont().deriveFont(32f));
+        graphics2D.setFont(fonts.getLabel());
         int amountX;
         int amountY;
         amountX = getXForAlignTextToRight(String.valueOf(gameEntity.getInventory().get(inventoryItem).getStackCount()), slotX + 44);
@@ -677,7 +673,7 @@ public class UI {
       // DESCRIPTION TEXT
       int textX = frameX + 20;
       int textY = descriptionFrameY + TILE_SIZE;
-      graphics2D.setFont(graphics2D.getFont().deriveFont(28F));
+      graphics2D.setFont(fonts.getDescription());
 
       int itemIndex = getItemIndexFromInventory(slotCol, slotRow);
       if (itemIndex < gameEntity.getInventory().size()) {
@@ -718,7 +714,7 @@ public class UI {
     int messageX = TILE_SIZE;
     int messageY = TILE_SIZE * 4;
 
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.BOLD, 20F));
+    graphics2D.setFont(fonts.getMessage());
 
     for (int i = 0; i < messages.size(); i++) {
       if (Objects.nonNull(messages.get(i))) {
@@ -748,7 +744,7 @@ public class UI {
 
     // TEXT
     graphics2D.setColor(Color.WHITE);
-    graphics2D.setFont(graphics2D.getFont().deriveFont(25F));
+    graphics2D.setFont(fonts.getBody());
     drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
     int textX = frameX + 20;
@@ -898,7 +894,7 @@ public class UI {
         }
 
         if (isBoss) {
-          graphics2D.setFont(graphics2D.getFont().deriveFont(Font.BOLD, 24F));
+          graphics2D.setFont(fonts.getBossName());
           graphics2D.setColor(Color.WHITE);
           graphics2D.drawString(monster.getName(), x + 4, y - 10);
         } else {
@@ -917,7 +913,7 @@ public class UI {
     graphics2D.setColor(Color.BLACK);
     graphics2D.fillRect(0, 0, gamePanel.getScreenWidth(), gamePanel.getScreenHeight());
     // TITLE NAME
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.BOLD, 96F));
+    graphics2D.setFont(fonts.getTitle());
     int x = getXForCenteredText(TextManager.getSettingText(MENU_OPTIONS, TITLE));
     int y = TILE_SIZE * 3;
 
@@ -934,19 +930,13 @@ public class UI {
     graphics2D.drawImage(gamePanel.getPlayer().getDown1(), x, y, TILE_SIZE * 2, TILE_SIZE * 2, null);
 
     // MENU
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.BOLD, 48F));
-
-    String[] menuOptions = {
-        TextManager.getSettingText(MENU_OPTIONS, NEW_GAME),
-        TextManager.getSettingText(MENU_OPTIONS, LOAD_GAME),
-        TextManager.getSettingText(MENU_OPTIONS, QUIT)
-    };
+    graphics2D.setFont(fonts.getMenu());
 
     y += TILE_SIZE * 3;
 
-    for (int i = 0; i < menuOptions.length; i++) {
-      x = getXForCenteredText(menuOptions[i]);
-      graphics2D.drawString(menuOptions[i], x, y);
+    for (int i = 0; i < titleOptions.size(); i++) {
+      x = getXForCenteredText(titleOptions.get(i));
+      graphics2D.drawString(titleOptions.get(i), x, y);
 
       if (commandNum == i) {
         graphics2D.drawString(CURSOR_SELECTOR, x - TILE_SIZE, y);
@@ -965,7 +955,7 @@ public class UI {
     int height = TILE_SIZE * 4;
     drawSubWindow(x, y, width, height);
 
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.PLAIN, 25F));
+    graphics2D.setFont(fonts.getBody());
     x += TILE_SIZE;
     y += TILE_SIZE;
 
@@ -1041,7 +1031,6 @@ public class UI {
       transitionCounter = 0;
       gamePanel.setGameState(PLAY_STATE);
       gamePanel.getWorld().switchMap(gamePanel.getEventHandler().getTempMap());
-      gamePanel.getGameMap().createWorldMap();
       gamePanel.getPlayer().setWorldX(TILE_SIZE * gamePanel.getEventHandler().getTempCol());
       gamePanel.getPlayer().setWorldY(TILE_SIZE * gamePanel.getEventHandler().getTempRow());
       gamePanel.getEventHandler().setPreviousEventX(gamePanel.getPlayer().getWorldX());
@@ -1051,7 +1040,7 @@ public class UI {
   }
 
   private void drawPauseScreen() {
-    graphics2D.setFont(graphics2D.getFont().deriveFont(Font.PLAIN, 80F));
+    graphics2D.setFont(fonts.getPause());
     int x = getXForCenteredText(TextManager.getUiText(UI_MESSAGES, PAUSED));
     int y = gamePanel.getScreenHeight() / 2;
 

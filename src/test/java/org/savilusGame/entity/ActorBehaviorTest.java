@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -215,5 +217,26 @@ class ActorBehaviorTest {
     assertFalse(victim.isKnockBack());
     assertEquals(4, victim.getSpeed());
     assertEquals(400, victim.getWorldY(), "a blocked knockback must not move the actor");
+  }
+
+  @Test
+  void failedAttackRestoresTheBodyAndPosition() {
+    panel.setCollisionDetector(new CollisionDetector(panel) {
+      @Override public boolean checkPlayer(CollisionBody entity) { throw new IllegalStateException("broken target"); }
+    });
+    var actor = new TestActor(panel);
+    actor.setMonster(true);
+    actor.setWorldPosition(100, 200);
+    actor.setDirection(Direction.RIGHT);
+    var body = new Rectangle(4, 7, 9, 12);
+    actor.setSolidArea(body);
+    actor.setAttackArea(new Rectangle(0, 0, 31, 7));
+    actor.setFirstAttackMotionDuration(0);
+    actor.setSecondAttackMotionDuration(2);
+    assertThrows(IllegalStateException.class, actor::attackNow);
+    assertEquals(100, actor.getWorldX());
+    assertEquals(200, actor.getWorldY());
+    assertSame(body, actor.getSolidArea());
+    assertEquals(new Rectangle(4, 7, 9, 12), body);
   }
 }

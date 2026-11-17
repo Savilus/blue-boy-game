@@ -74,7 +74,7 @@ class SaveLoadTest {
     Chest chest = (Chest) world.objects(DUNGEON_FIRST_FLOR).getFirst();
     chest.setOpened(true);
     String chestLoot = chest.getLoot().getId();
-    world.interactiveTiles(MAIN_MAP).set(0, null);
+    world.replaceInteractiveTile(MAIN_MAP, 0, null);
     world.setSkeletonLordDefeated(true);
     boolean[][] events = panel.getEventHandler().completedEvents(DUNGEON_SECOND_FLOR);
     events[25][27] = true;

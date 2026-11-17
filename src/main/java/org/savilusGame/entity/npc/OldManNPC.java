@@ -11,11 +11,10 @@ import static org.savilusGame.config.GameEntityNameFactory.OLD_MAN_UP1;
 import static org.savilusGame.config.GameEntityNameFactory.OLD_MAN_UP2;
 
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
@@ -40,14 +39,14 @@ public class OldManNPC extends Actor {
   }
 
   private void getPlayerImage() {
-    up1 = SpriteLoader.load(OLD_MAN_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(OLD_MAN_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(OLD_MAN_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(OLD_MAN_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(OLD_MAN_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(OLD_MAN_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(OLD_MAN_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(OLD_MAN_RIGHT2, TILE_SIZE, TILE_SIZE);
+    up1 = sprites.get(OLD_MAN_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = sprites.get(OLD_MAN_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = sprites.get(OLD_MAN_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = sprites.get(OLD_MAN_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = sprites.get(OLD_MAN_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = sprites.get(OLD_MAN_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = sprites.get(OLD_MAN_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = sprites.get(OLD_MAN_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override
@@ -64,7 +63,7 @@ public class OldManNPC extends Actor {
 
   @Override
   public void setAction() {
-    if (onPath) {
+    if (isOnPath()) {
       int goalCol = 12;
       int goalRow = 9;
 
@@ -76,8 +75,7 @@ public class OldManNPC extends Actor {
       actionLockCounter++;
 
       if (actionLockCounter == ACTION_INTERVAL) {
-        Random random = new Random();
-        int randomNumber = random.nextInt(100) + 1;
+        int randomNumber = ThreadLocalRandom.current().nextInt(100) + 1;
 
         if (randomNumber <= 25) direction = Direction.UP;
         else if (randomNumber <= 50) direction = Direction.DOWN;

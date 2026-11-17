@@ -9,7 +9,6 @@ import static org.savilusGame.config.GameEntityNameFactory.POWER_UP;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.Item;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
 import org.savilusGame.utils.text.TextManager;
@@ -23,7 +22,7 @@ public class Heart extends Item {
     super(gamePanel, GameObject.HEART);
     type = WorldGameTypes.PICK_UP;
     value = 2;
-    icon = SpriteLoader.load(HEART_FULL, TILE_SIZE, TILE_SIZE);
+    icon = sprites.get(HEART_FULL, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

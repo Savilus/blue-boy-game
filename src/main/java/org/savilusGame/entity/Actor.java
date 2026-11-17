@@ -13,15 +13,16 @@ import static org.savilusGame.enums.GameState.CUTSCENE_STATE;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
-import java.util.stream.Collectors;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.savilusGame.GamePanel;
+import org.savilusGame.utils.SpriteCache;
+import org.savilusGame.service.DepthDrawable;
+import org.savilusGame.ai.Node;
+import org.savilusGame.ai.PathFollower;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.entity.projectile.Projectile;
@@ -30,9 +31,7 @@ import org.savilusGame.service.DialogueSpeaker;
 import org.savilusGame.service.DialogueStarter;
 import org.savilusGame.service.Movable;
 import org.savilusGame.service.ParticleSpec;
-import org.savilusGame.utils.CameraUtil;
 import org.savilusGame.utils.ParticleUtil;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.utils.text.TextManager;
 
 import lombok.AccessLevel;
@@ -49,7 +48,7 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 @FieldDefaults(level = AccessLevel.PROTECTED)
-public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, ParticleSpec {
+public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpeaker, Movable, ParticleSpec {
 
   private static final String EVENT_MESSAGES = "eventMessages";
   private static final int PARRY_WINDOW = 10;
@@ -61,6 +60,8 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   private static final int SPRITE_CHANGE_TIME = 24;
 
   final GamePanel gamePanel;
+  @Getter(AccessLevel.NONE)
+  final SpriteCache sprites;
 
   BufferedImage mainImage, mainImage2, mainImage3;
   BufferedImage up1, up2, down1, down2, left1, left2, right1, right2;
@@ -68,7 +69,6 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   BufferedImage guardUp, guardDown, guardLeft, guardRight;
   Rectangle solidArea = new Rectangle(0, 0, 45, 45);
   Rectangle attackArea = new Rectangle(0, 0, 0, 0);
-  int solidAreaDefaultX, solidAreaDefaultY;
   Map<String, List<String>> dialogues;
   boolean collision = false;
   Actor attacker;
@@ -85,7 +85,10 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   boolean alive = true;
   boolean dying = false;
   private boolean hpBarOn = false;
-  boolean onPath = false;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  private PathFollower pathFollower;
+  private boolean onPath;
   boolean knockBack = false;
   Direction knockBackDirection;
   boolean guarding = false;
@@ -139,6 +142,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
 
   public Actor(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
+    this.sprites = gamePanel.getSpriteCache();
     setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
 
@@ -286,7 +290,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   public void getRandomDirection(int interval) {
     actionLockCounter++;
     if (actionLockCounter > interval) {
-      int randomNumber = new Random().nextInt(100) + 1;
+      int randomNumber = ThreadLocalRandom.current().nextInt(100) + 1;
 
       if (randomNumber <= 25) direction = Direction.UP;
       else if (randomNumber <= 50) direction = Direction.DOWN;
@@ -330,48 +334,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
     } else if (spriteCounter <= secondAttackMotionDuration) {
       spriteNum = 2;
 
-      // SAVE THE CURRENT worldX, worldY and solid area
-      int currentWorldX = worldX;
-      int currentWorldY = worldY;
-      int currentSolidAreaWidth = solidArea.width;
-      int currentSolidAreaHeight = solidArea.height;
-
-      // adjust player's worldX/Y for the attack area
-      switch (getDirection()) {
-        case UP -> worldY -= attackArea.height;
-        case DOWN -> worldY += attackArea.height;
-        case LEFT -> worldX -= attackArea.width;
-        case RIGHT -> worldX += attackArea.width;
-      }
-      // attackArea becomes solid area
-      solidArea.width = attackArea.width;
-      solidArea.height = attackArea.height;
-
-      if (monster) {
-        if (gamePanel.getCollisionDetector().checkPlayer(this)) {
-          damagePlayer(attackValue);
-        }
-      } else {
-        // check monster collision with updated worldX, worldY and solidArea
-        int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
-        getPlayer().damageMonster(this, monsterIndex, attack, currentWeapon.getKnockBackPower());
-
-        int interactiveTileIndex = gamePanel.getCollisionDetector().checkEntity(
-            this,
-            Optional.ofNullable(gamePanel.getWorld().currentInteractiveTiles())
-                .orElse(Collections.emptyList())
-        );
-
-        getPlayer().damageInteractiveTile(interactiveTileIndex);
-
-        int projectileIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentProjectiles());
-        getPlayer().damageProjectile(projectileIndex);
-      }
-
-      worldX = currentWorldX;
-      worldY = currentWorldY;
-      solidArea.width = currentSolidAreaWidth;
-      solidArea.height = currentSolidAreaHeight;
+      resolveStrike();
     } else if (spriteCounter > secondAttackMotionDuration) {
       spriteNum = 1;
       spriteCounter = 0;
@@ -388,41 +351,54 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
     return worldY + solidArea.y + solidArea.height / 2;
   }
 
+  public void setOnPath(boolean onPath) {
+    this.onPath = onPath;
+    if (!onPath) pathFollower = null;
+  }
+
+  /** Remaining tiles for the dev overlay. Painting never searches or advances the cursor. */
+  public List<Node> remainingPath() {
+    return alive && !dying && !sleep && onPath && pathFollower != null ? pathFollower.remaining() : List.of();
+  }
+
+  /** Some enemies steer directly instead of planning a tile route. */
+  public boolean isPursuingDirectly() {
+    return false;
+  }
+
   protected void searchPath(int goalCol, int goalRow) {
-    int startCol = (worldX + solidArea.x) / TILE_SIZE;
-    int startRow = (worldY + solidArea.y) / TILE_SIZE;
+    if (!onPath) return;
+    int startCol = Math.floorDiv(getLeftX(), TILE_SIZE);
+    int startRow = Math.floorDiv(getTopY(), TILE_SIZE);
+    if (startCol == goalCol && startRow == goalRow) {
+      setOnPath(false);
+      return;
+    }
+    if (pathFollower == null) pathFollower = new PathFollower(gamePanel.getPathFinder());
+    Node nextNode = pathFollower.nextStep(gamePanel.getWorld().navigationGrid(), startCol, startRow, goalCol, goalRow);
+    if (nextNode == null) return;
+    int nextX = nextNode.column() * TILE_SIZE;
+    int nextY = nextNode.row() * TILE_SIZE;
 
-    gamePanel.getPathFinder().setNodes(startCol, startRow, goalCol, goalRow);
+    int entityLeftX = worldX + solidArea.x;
+    int entityRightX = entityLeftX + solidArea.width;
+    int entityTopY = worldY + solidArea.y;
+    int entityBottomY = entityTopY + solidArea.height;
 
-    if (gamePanel.getPathFinder().search()) {
-      var nextNode = gamePanel.getPathFinder().getPathList().getFirst();
-      int nextX = nextNode.getCol() * TILE_SIZE;
-      int nextY = nextNode.getRow() * TILE_SIZE;
+    if (entityLeftX >= nextX && entityRightX < nextX + TILE_SIZE) {
+      direction = (entityTopY > nextY) ? UP : (entityTopY < nextY ? DOWN : direction);
+    } else if (entityTopY >= nextY && entityBottomY < nextY + TILE_SIZE) {
+      direction = (entityLeftX > nextX) ? LEFT : (entityLeftX < nextX ? RIGHT : direction);
+    } else {
+      // Prefer vertical movement, fallback to horizontal if blocked.
+      Direction primaryDir = (entityTopY > nextY) ? UP : DOWN;
+      Direction secondaryDir = (entityLeftX > nextX) ? LEFT : RIGHT;
 
-      int entityLeftX = worldX + solidArea.x;
-      int entityRightX = entityLeftX + solidArea.width;
-      int entityTopY = worldY + solidArea.y;
-      int entityBottomY = entityTopY + solidArea.height;
+      direction = primaryDir;
+      checkCollision();
 
-      if (entityLeftX >= nextX && entityRightX < nextX + TILE_SIZE) {
-        direction = (entityTopY > nextY) ? UP : (entityTopY < nextY ? DOWN : direction);
-      } else if (entityTopY >= nextY && entityBottomY < nextY + TILE_SIZE) {
-        direction = (entityLeftX > nextX) ? LEFT : (entityLeftX < nextX ? RIGHT : direction);
-      } else {
-        // Prefer vertical movement, fallback to horizontal if blocked.
-        Direction primaryDir = (entityTopY > nextY) ? UP : DOWN;
-        Direction secondaryDir = (entityLeftX > nextX) ? LEFT : RIGHT;
-
-        direction = primaryDir;
-        checkCollision();
-
-        if (collisionOn) {
-          direction = secondaryDir;
-        }
-      }
-
-      if (nextNode.getCol() == goalCol && nextNode.getRow() == goalRow) {
-        onPath = false;
+      if (collisionOn) {
+        direction = secondaryDir;
       }
     }
   }
@@ -552,11 +528,11 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   }
 
   protected int getGoalCol(Actor target) {
-    return (target.worldX + target.solidArea.x) / TILE_SIZE;
+    return Math.floorDiv(target.getLeftX(), TILE_SIZE);
   }
 
   protected int getGoalRow(Actor target) {
-    return (target.worldY + target.solidArea.y) / TILE_SIZE;
+    return Math.floorDiv(target.getTopY(), TILE_SIZE);
   }
 
   protected void checkIfShouldAttack(int rate, int straight, int horizontal) {
@@ -587,7 +563,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
       }
     }
     if (targetInRange) {
-      int randomChance = new Random().nextInt(rate);
+      int randomChance = ThreadLocalRandom.current().nextInt(rate);
       if (randomChance == 0) {
         attacking = true;
         spriteNum = 1;
@@ -598,7 +574,7 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
   }
 
   protected void checkIfShouldShoot(int rate, int shotInterval) {
-    int randomNumber = new Random().nextInt(rate);
+    int randomNumber = ThreadLocalRandom.current().nextInt(rate);
     if (randomNumber == 0 && !projectile.isAlive() && shootAvailableCounter == shotInterval) {
       projectile.set(worldX, worldY, direction, true, this);
       List<Actor> projectilesList = gamePanel.getWorld().currentProjectiles();
@@ -609,18 +585,18 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
 
   protected void checkIfShouldStopChasing(Actor target, int distance, int rate) {
     if (getTileDistance(target) > distance) {
-      int randomChance = new Random().nextInt(rate);
+      int randomChance = ThreadLocalRandom.current().nextInt(rate);
       if (randomChance == 0) {
-        onPath = false;
+        setOnPath(false);
       }
     }
   }
 
   protected void checkIfShouldStartChasing(Actor target, int distance, int rate) {
     if (getTileDistance(target) < distance) {
-      int randomChance = new Random().nextInt(rate);
+      int randomChance = ThreadLocalRandom.current().nextInt(rate);
       if (randomChance == 0) {
-        onPath = true;
+        setOnPath(true);
       }
     }
   }
@@ -631,6 +607,36 @@ public abstract class Actor implements CollisionBody, DialogueSpeaker, Movable, 
     if (knockBackPower == 0) return;
     target.speed += knockBackPower;
     target.knockBack = true;
+  }
+
+  /** Project the attack for collision callbacks, never resize the shared body rectangle. */
+  private void resolveStrike() {
+    int originalX = worldX;
+    int originalY = worldY;
+    Rectangle body = solidArea;
+    attackArea.setLocation(body.x, body.y);
+    solidArea = attackArea;
+    try {
+      switch (direction) {
+        case UP -> worldY -= attackArea.height;
+        case DOWN -> worldY += attackArea.height;
+        case LEFT -> worldX -= attackArea.width;
+        case RIGHT -> worldX += attackArea.width;
+      }
+      if (monster) {
+        if (gamePanel.checkPlayer(this)) damagePlayer(attackValue);
+      } else {
+        var world = gamePanel.getWorld();
+        int hit = gamePanel.checkEntity(this, world.currentMonsters());
+        getPlayer().damageMonster(this, hit, attack, currentWeapon.getKnockBackPower());
+        getPlayer().damageInteractiveTile(gamePanel.checkEntity(this, world.currentInteractiveTiles()));
+        getPlayer().damageProjectile(gamePanel.checkEntity(this, world.currentProjectiles()));
+      }
+    } finally {
+      worldX = originalX;
+      worldY = originalY;
+      solidArea = body;
+    }
   }
 
   private void dyingAnimation(Graphics2D graphics2D) {

@@ -3,9 +3,11 @@ package org.savilusGame.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.awt.Rectangle;
 import java.util.List;
+import java.util.Arrays;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +17,7 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.item.ItemDrop;
 import org.savilusGame.entity.items.RedPotion;
+import org.savilusGame.entity.items.Door;
 import org.savilusGame.enums.Direction;
 
 /**
@@ -211,5 +214,68 @@ class CollisionServiceTest {
 
     assertEquals(CollisionService.INIT_INDEX, index);
     assertFalse(mover.isCollisionOn());
+  }
+
+  @Test
+  void projectedBoxesPreserveLocalOffsetsAndLastHitIncludingNonblockingObjects() {
+    var mover = new TestEntity(panel, 100, 200, Direction.RIGHT, 4);
+    mover.setSolidArea(new Rectangle(8, 6, 10, 10));
+    var door = new Door(panel);
+    door.setWorldPosition(118, 202);
+    door.setSolidArea(new Rectangle(2, 4, 10, 10));
+    var decoration = new Door(panel);
+    decoration.setWorldPosition(door.getWorldX(), door.getWorldY());
+    decoration.setSolidArea(new Rectangle(door.getSolidArea()));
+    decoration.setCollision(false);
+    panel.getWorld().currentObjects().addAll(Arrays.asList(null, door, decoration));
+    for (int call = 0; call < 2; call++) {
+      mover.setCollisionOn(false);
+      assertEquals(2, collision.checkObject(mover, true));
+      assertTrue(mover.isCollisionOn(), "the decoration must not cancel the door collision");
+      assertEquals(CollisionService.INIT_INDEX, collision.checkObject(mover, false));
+      assertEquals(2, collision.checkEntity(mover, Arrays.asList(mover, null, door)));
+      assertEquals(new Rectangle(8, 6, 10, 10), mover.getSolidArea());
+      assertEquals(new Rectangle(2, 4, 10, 10), door.getSolidArea());
+    }
+    mover.setSpeed(2); // just touching the left edge of the door
+    mover.setCollisionOn(false);
+    assertEquals(CollisionService.INIT_INDEX, collision.checkEntity(mover, List.of(mover, door)));
+    assertFalse(mover.isCollisionOn());
+    door.getSolidArea().width = 0;
+    mover.setSpeed(4);
+    assertEquals(CollisionService.INIT_INDEX, collision.checkEntity(mover, List.of(door)));
+  }
+
+  @Test
+  void checksUseKnockbackRatherThanFacingEvenForPlayerAndPickups() {
+    var mover = new TestEntity(panel, 100, 200, Direction.RIGHT, 5);
+    mover.setSolidArea(new Rectangle(3, 4, 8, 8));
+    mover.setKnockBackDirection(Direction.LEFT);
+    var player = panel.getPlayer();
+    player.setSolidArea(new Rectangle(1, 2, 8, 8));
+    player.setWorldPosition(93, 202);
+    var drop = new ItemDrop(panel, new RedPotion(panel)).setWorldPosition(93, 202);
+    drop.getSolidArea().setBounds(player.getSolidArea());
+    assertFalse(collision.checkPlayer(mover));
+    mover.setKnockBack(true);
+    assertEquals(1, collision.checkItems(mover, List.of(drop, drop)));
+    assertFalse(mover.isCollisionOn());
+    assertTrue(collision.checkPlayer(mover));
+    assertTrue(mover.isCollisionOn());
+    assertEquals(new Rectangle(1, 2, 8, 8), player.getSolidArea());
+    assertEquals(new Rectangle(1, 2, 8, 8), drop.getSolidArea());
+    assertEquals(new Rectangle(3, 4, 8, 8), mover.getSolidArea());
+    assertFalse(collision.checkPlayer(player));
+  }
+
+  @Test
+  void anExceptionReadingATargetNeverLeavesTheMoverInWorldCoordinates() {
+    var mover = new TestEntity(panel, 100, 200, Direction.UP, 4);
+    mover.setSolidArea(new Rectangle(8, 6, 10, 10));
+    var broken = new TestEntity(panel, 100, 200, Direction.ANY, 0) {
+      @Override public Rectangle getSolidArea() { throw new IllegalStateException("broken target"); }
+    };
+    assertThrows(IllegalStateException.class, () -> collision.checkEntity(mover, List.of(broken)));
+    assertEquals(new Rectangle(8, 6, 10, 10), mover.getSolidArea());
   }
 }

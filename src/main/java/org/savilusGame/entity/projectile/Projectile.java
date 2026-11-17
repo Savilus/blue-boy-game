@@ -1,10 +1,9 @@
 package org.savilusGame.entity.projectile;
 
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
+import static org.savilusGame.service.CollisionService.INIT_INDEX;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.Direction;
 
 import lombok.Getter;

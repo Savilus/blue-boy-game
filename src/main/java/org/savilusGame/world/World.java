@@ -1,6 +1,9 @@
 package org.savilusGame.world;
 
 import java.util.ArrayList;
+import java.util.Collections;
+
+import org.savilusGame.ai.NavigationGrid;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +29,7 @@ import org.savilusGame.tile.TileManager;
 public class World {
 
   private final TileManager tileManager;
+  private final WorldNavigation navigation = new WorldNavigation();
 
   private final Map<String, List<InteractiveObject>> mapsObjects = new java.util.HashMap<>();
   private final Map<String, List<ItemDrop>> mapsItems = new java.util.HashMap<>();
@@ -74,7 +78,7 @@ public class World {
     mapsItems.computeIfAbsent(mapName, key -> new ArrayList<>());
     mapsNpc.computeIfAbsent(mapName, key -> new ArrayList<>());
     mapsMonsters.computeIfAbsent(mapName, key -> new ArrayList<>());
-    mapsInteractiveTiles.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsInteractiveTiles.putIfAbsent(mapName, List.of());
     projectiles.computeIfAbsent(mapName, key -> new ArrayList<>());
   }
 
@@ -98,7 +102,7 @@ public class World {
   }
 
   public Map<String, List<InteractiveTile>> mapsInteractiveTiles() {
-    return mapsInteractiveTiles;
+    return Collections.unmodifiableMap(mapsInteractiveTiles);
   }
 
   public Map<String, List<Actor>> projectiles() {
@@ -203,7 +207,24 @@ public class World {
   }
 
   public void setInteractiveTiles(Map<String, List<InteractiveTile>> maps) {
-    replaceMaps(mapsInteractiveTiles, maps);
+    maps.keySet().forEach(this::ensureMap);
+    mapsInteractiveTiles.replaceAll((map, previous) -> immutableTiles(maps.getOrDefault(map, List.of())));
+  }
+
+  /** Publish the replacement and its passability together; destroyed walls leave a null slot. */
+  public void replaceInteractiveTile(String map, int index, InteractiveTile replacement) {
+    var updated = new ArrayList<>(interactiveTiles(map));
+    updated.set(index, replacement);
+    mapsInteractiveTiles.put(map, Collections.unmodifiableList(updated));
+  }
+
+  public NavigationGrid navigationGrid() {
+    return navigation.grid(tileManager.getGameMaps().get(currentMap), tileManager.getTile(), currentInteractiveTiles());
+  }
+
+  private static List<InteractiveTile> immutableTiles(List<InteractiveTile> tiles) {
+    // List.copyOf rejects the null slots used for destroyed walls.
+    return Collections.unmodifiableList(new ArrayList<>(tiles));
   }
 
   public void setProjectiles(Map<String, List<Actor>> maps) {

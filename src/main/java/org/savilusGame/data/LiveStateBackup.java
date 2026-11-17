@@ -97,7 +97,6 @@ final class LiveStateBackup {
 
     gamePanel.setCurrentArea(currentArea);
     gamePanel.setNextArea(nextArea);
-    gamePanel.getGameMap().createWorldMap();
   }
 
   private static <T> Map<String, List<T>> copy(Map<String, List<T>> source) {

@@ -11,7 +11,6 @@ import java.util.Objects;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.enums.Direction;
 import org.savilusGame.enums.GameObject;
@@ -42,8 +41,6 @@ public class BigRock extends Actor {
     solidArea = new Rectangle();
     solidArea.x = 2;
     solidArea.y = 6;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
     solidArea.width = 44;
     solidArea.height = 40;
   }
@@ -94,14 +91,8 @@ public class BigRock extends Actor {
   }
 
   private void getImage() {
-    up1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(BIGROCK, TILE_SIZE, TILE_SIZE);
+    up1 = down1 = left1 = right1 = sprites.get(BIGROCK, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = sprites.get(BIGROCK, TILE_SIZE, TILE_SIZE);
   }
 
   @Override

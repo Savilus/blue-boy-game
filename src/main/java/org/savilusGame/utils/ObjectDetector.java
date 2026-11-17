@@ -1,7 +1,7 @@
 package org.savilusGame.utils;
 
 import static org.savilusGame.GamePanel.TILE_SIZE;
-import static org.savilusGame.utils.CollisionDetector.INIT_INDEX;
+import static org.savilusGame.service.CollisionService.INIT_INDEX;
 
 import java.util.List;
 import java.util.Objects;

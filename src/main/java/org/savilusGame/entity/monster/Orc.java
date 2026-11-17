@@ -20,7 +20,6 @@ import static org.savilusGame.config.GameEntityNameFactory.ORC_UP2;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.items.Key;
 import org.savilusGame.enums.MonsterType;
 import org.savilusGame.enums.WorldGameTypes;
@@ -51,8 +50,6 @@ public class Orc extends Actor {
     solidArea.y = 4;
     solidArea.width = 37;
     solidArea.height = 41;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
     attackArea.width = 48;
     attackArea.height = 48;
     firstAttackMotionDuration = 40;
@@ -62,25 +59,25 @@ public class Orc extends Actor {
   }
 
   private void getImage() {
-    up1 = SpriteLoader.load(ORC_UP1, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(ORC_UP2, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(ORC_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(ORC_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(ORC_LEFT1, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(ORC_LEFT2, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(ORC_RIGHT1, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(ORC_RIGHT2, TILE_SIZE, TILE_SIZE);
+    up1 = sprites.get(ORC_UP1, TILE_SIZE, TILE_SIZE);
+    up2 = sprites.get(ORC_UP2, TILE_SIZE, TILE_SIZE);
+    down1 = sprites.get(ORC_DOWN1, TILE_SIZE, TILE_SIZE);
+    down2 = sprites.get(ORC_DOWN2, TILE_SIZE, TILE_SIZE);
+    left1 = sprites.get(ORC_LEFT1, TILE_SIZE, TILE_SIZE);
+    left2 = sprites.get(ORC_LEFT2, TILE_SIZE, TILE_SIZE);
+    right1 = sprites.get(ORC_RIGHT1, TILE_SIZE, TILE_SIZE);
+    right2 = sprites.get(ORC_RIGHT2, TILE_SIZE, TILE_SIZE);
   }
 
   public void getAttackImage() {
-    attackUp1 = SpriteLoader.load(ATTACK_ORC_UP1, TILE_SIZE, TILE_SIZE * 2);
-    attackUp2 = SpriteLoader.load(ATTACK_ORC_UP2, TILE_SIZE, TILE_SIZE * 2);
-    attackDown1 = SpriteLoader.load(ATTACK_ORC_DOWN1, TILE_SIZE, TILE_SIZE * 2);
-    attackDown2 = SpriteLoader.load(ATTACK_ORC_DOWN2, TILE_SIZE, TILE_SIZE * 2);
-    attackLeft1 = SpriteLoader.load(ATTACK_ORC_LEFT1, TILE_SIZE * 2, TILE_SIZE);
-    attackLeft2 = SpriteLoader.load(ATTACK_ORC_LEFT2, TILE_SIZE * 2, TILE_SIZE);
-    attackRight1 = SpriteLoader.load(ATTACK_ORC_RIGHT1, TILE_SIZE * 2, TILE_SIZE);
-    attackRight2 = SpriteLoader.load(ATTACK_ORC_RIGHT2, TILE_SIZE * 2, TILE_SIZE);
+    attackUp1 = sprites.get(ATTACK_ORC_UP1, TILE_SIZE, TILE_SIZE * 2);
+    attackUp2 = sprites.get(ATTACK_ORC_UP2, TILE_SIZE, TILE_SIZE * 2);
+    attackDown1 = sprites.get(ATTACK_ORC_DOWN1, TILE_SIZE, TILE_SIZE * 2);
+    attackDown2 = sprites.get(ATTACK_ORC_DOWN2, TILE_SIZE, TILE_SIZE * 2);
+    attackLeft1 = sprites.get(ATTACK_ORC_LEFT1, TILE_SIZE * 2, TILE_SIZE);
+    attackLeft2 = sprites.get(ATTACK_ORC_LEFT2, TILE_SIZE * 2, TILE_SIZE);
+    attackRight1 = sprites.get(ATTACK_ORC_RIGHT1, TILE_SIZE * 2, TILE_SIZE);
+    attackRight2 = sprites.get(ATTACK_ORC_RIGHT2, TILE_SIZE * 2, TILE_SIZE);
   }
 
   @Override
@@ -92,12 +89,12 @@ public class Orc extends Actor {
   @Override
   public void damageReaction() {
     actionLockCounter = 0;
-    onPath = true;
+    setOnPath(true);
   }
 
   @Override
   public void setAction() {
-    if (onPath) {
+    if (isOnPath()) {
       checkIfShouldStopChasing(gamePanel.getPlayer(), START_CHASING_DISTANCE, CHASE_RATE);
       searchPath(getGoalCol(gamePanel.getPlayer()), getGoalRow(gamePanel.getPlayer()));
     } else {

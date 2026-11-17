@@ -12,7 +12,6 @@ import static org.savilusGame.enums.GameState.TITLE_STATE;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -27,7 +26,6 @@ import org.savilusGame.data.SaveLoad;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.GameEntityFactory;
-import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.entity.Player;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
@@ -49,6 +47,7 @@ import org.savilusGame.utils.text.TextManager;
 import org.savilusGame.utils.CollisionDetector;
 import org.savilusGame.utils.CutsceneManager;
 import org.savilusGame.utils.KeyHandler;
+import org.savilusGame.utils.SpriteCache;
 import org.savilusGame.utils.event.EventHandler;
 
 import lombok.AccessLevel;
@@ -61,7 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class GamePanel extends JPanel implements Runnable, CollisionService, PathfindingService, AudioService, TextRepository, ItemCatalog, RenderContext {
+public class GamePanel extends JPanel implements Runnable, CollisionService, AudioService, TextRepository, ItemCatalog, RenderContext {
 
   // SCREEN SETTINGS
   final static int ORIGINAL_TITLE_SIZE = 16; // 16x16 tile
@@ -84,13 +83,17 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
 
   // SYSTEM
   static final int FPS = 60;
+  static final Font DEBUG_FONT = new Font("Arial", Font.PLAIN, 20);
+  @Getter(AccessLevel.NONE)
+  final WorldRenderer worldRenderer = new WorldRenderer();
+  final SpriteCache spriteCache = new SpriteCache();
   final TileManager tileManager = new TileManager(this);
   final World world = new World(tileManager, MAIN_MAP);
   final DevMode devMode = DevMode.fromConfig();
   final KeyHandler keyHandler = new KeyHandler(this, devMode);
   Sound music = new Sound();
   Sound soundEffect = new Sound();
-  PathFinder pathFinder = new PathFinder(this);
+  final PathfindingService pathFinder = new PathFinder();
   CollisionDetector collisionDetector = new CollisionDetector(this);
   AssetSetter assetSetter = new AssetSetter(this);
   Thread gameThread;
@@ -263,21 +266,6 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
   }
 
   @Override
-  public void setNodes(int startCol, int startRow, int goalCol, int goalRow) {
-    pathFinder.setNodes(startCol, startRow, goalCol, goalRow);
-  }
-
-  @Override
-  public boolean search() {
-    return pathFinder.search();
-  }
-
-  @Override
-  public java.util.List<org.savilusGame.ai.Node> getPathList() {
-    return pathFinder.getPathList();
-  }
-
-  @Override
   public java.util.Map<String, List<String>> getDialoguesForTarget(String target) {
     return TextManager.getAllDialoguesForTarget(target);
   }
@@ -346,71 +334,7 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
       gameMap.drawFullMapScreen(tempGraphic2d);
     } else {
       tileManager.draw(tempGraphic2d);
-      var interactiveTiles = world.currentInteractiveTiles();
-      if (Objects.nonNull(interactiveTiles)) {
-        for (InteractiveTile interactiveTile : interactiveTiles) {
-          if (Objects.nonNull(interactiveTile)) {
-            interactiveTile.draw(tempGraphic2d);
-          }
-        }
-      }
-
-      // ONE y-sorted draw list: player + actors + world objects + item drops (identical z-order as before).
-      List<CollisionBody> drawables = new ArrayList<>();
-      drawables.add(player);
-      if (Objects.nonNull(world.currentNpc())) {
-        for (Actor npc : world.currentNpc()) {
-          if (Objects.nonNull(npc)) {
-            drawables.add(npc);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentObjects())) {
-        for (InteractiveObject object : world.currentObjects()) {
-          if (Objects.nonNull(object)) {
-            drawables.add(object);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentMonsters())) {
-        for (Actor monster : world.currentMonsters()) {
-          if (Objects.nonNull(monster)) {
-            drawables.add(monster);
-          }
-        }
-      }
-      if (Objects.nonNull(world.currentProjectiles())) {
-        for (Actor projectile : world.currentProjectiles()) {
-          if (Objects.nonNull(projectile)) {
-            drawables.add(projectile);
-          }
-        }
-      }
-      for (Actor particle : world.particleList()) {
-        if (Objects.nonNull(particle)) {
-          drawables.add(particle);
-        }
-      }
-      if (Objects.nonNull(world.currentItems())) {
-        for (var itemDrop : world.currentItems()) {
-          if (Objects.nonNull(itemDrop)) {
-            drawables.add(itemDrop);
-          }
-        }
-      }
-
-      drawables.sort(Comparator.comparingInt(CollisionBody::getWorldY));
-
-      for (CollisionBody drawable : drawables) {
-        if (drawable instanceof Actor actor) {
-          actor.draw(tempGraphic2d);
-        } else if (drawable instanceof InteractiveObject interactiveObject) {
-          interactiveObject.draw(tempGraphic2d);
-        } else if (drawable instanceof org.savilusGame.entity.item.ItemDrop itemDrop) {
-          itemDrop.draw(tempGraphic2d);
-        }
-      }
-
+      worldRenderer.draw(tempGraphic2d, world, player);
       environmentManager.draw(tempGraphic2d);
       gameMap.drawMiniMap(tempGraphic2d);
       cutsceneManager.draw(tempGraphic2d);
@@ -420,7 +344,7 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     //DEBUG
     if (keyHandler.isShowDebugText()) {
 
-      tempGraphic2d.setFont(new Font("Arial", Font.PLAIN, 20));
+      tempGraphic2d.setFont(DEBUG_FONT);
       tempGraphic2d.setColor(Color.WHITE);
       int x = 10;
       int y = 400;

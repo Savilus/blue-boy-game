@@ -4,11 +4,10 @@ import static org.savilusGame.GamePanel.TILE_SIZE;
 import static org.savilusGame.config.GameEntityNameFactory.GREEN_SLIME_DOWN1;
 import static org.savilusGame.config.GameEntityNameFactory.GREEN_SLIME_DOWN2;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.items.BronzeCoin;
 import org.savilusGame.entity.items.Heart;
 import org.savilusGame.entity.items.ManaCrystal;
@@ -40,25 +39,17 @@ public class GreenSlime extends Actor {
     solidArea.y = 18;
     solidArea.width = 42;
     solidArea.height = 30;
-    solidAreaDefaultX = solidArea.x;
-    solidAreaDefaultY = solidArea.y;
     getImage();
   }
 
   private void getImage() {
-    up1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    up2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    down1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    down2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    left1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    left2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
-    right1 = SpriteLoader.load(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
-    right2 = SpriteLoader.load(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
+    up1 = down1 = left1 = right1 = sprites.get(GREEN_SLIME_DOWN1, TILE_SIZE, TILE_SIZE);
+    up2 = down2 = left2 = right2 = sprites.get(GREEN_SLIME_DOWN2, TILE_SIZE, TILE_SIZE);
   }
 
   @Override
   public void checkDrop() {
-    int percentForDrop = new Random().nextInt(100) + 1;
+    int percentForDrop = ThreadLocalRandom.current().nextInt(100) + 1;
 
     if (percentForDrop < 50)
       dropItem(new BronzeCoin(gamePanel));
@@ -70,12 +61,12 @@ public class GreenSlime extends Actor {
   @Override
   public void damageReaction() {
     actionLockCounter = 0;
-    onPath = true;
+    setOnPath(true);
   }
 
   @Override
   public void setAction() {
-    if (onPath) {
+    if (isOnPath()) {
       checkIfShouldStopChasing(gamePanel.getPlayer(), STOP_CHASING_DISTANCE, SHOOT_RATE);
       searchPath(getGoalCol(gamePanel.getPlayer()), getGoalRow(gamePanel.getPlayer()));
 // Enable if you want green slime to shoot a rock

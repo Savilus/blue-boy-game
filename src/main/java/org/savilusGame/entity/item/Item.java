@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.savilusGame.GamePanel;
+import org.savilusGame.utils.SpriteCache;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.enums.GameObject;
 import org.savilusGame.enums.WorldGameTypes;
@@ -31,13 +32,15 @@ public class Item implements DialogueSpeaker {
   private static final String EVENT_MESSAGES = "eventMessages";
 
   final GamePanel gamePanel;
+  @Getter(AccessLevel.NONE)
+  final SpriteCache sprites;
   private final String id;
   String name;
   String description;
   int value;
   int price;
   int stackCount = 1;
-  boolean stackable = false;
+  private final boolean stackable;
   WorldGameTypes type;
   BufferedImage icon;
   int attackValue;
@@ -53,7 +56,9 @@ public class Item implements DialogueSpeaker {
 
   protected Item(GamePanel gamePanel, GameObject gameObject) {
     this.gamePanel = gamePanel;
+    this.sprites = gamePanel.getSpriteCache();
     this.id = gameObject.name();
+    this.stackable = gameObject.isStackable();
     this.name = TextManager.getItemName(gameObject.getTextKey());
     this.setDialogues(TextManager.getAllDialoguesForTarget(EVENT_MESSAGES));
   }
