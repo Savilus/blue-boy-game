@@ -209,7 +209,9 @@ public class World {
   }
 
   public NavigationGrid navigationGrid() {
-    return navigation.grid(tileManager.getGameMaps().get(currentMap), tileManager.getTile(), currentInteractiveTiles());
+    int[][] layout = tileManager.getGameMaps().get(currentMap);
+    if (layout == null) throw new IllegalStateException("No navigation terrain for map: " + currentMap);
+    return navigation.grid(layout, tileManager.getTile(), currentInteractiveTiles());
   }
 
   public void setProjectiles(Map<String, List<Actor>> maps) {

@@ -67,9 +67,14 @@ class DesktopCheck {
       until(() -> player.getInventory().contains(potion) && player.isCollisionOn(), "pickup and solid door");
       robot.keyRelease(VK_S);
       if (player.getWorldY() <= startY || player.getWorldY() > startY + 16) throw new AssertionError("door boundary");
-      key(robot, VK_C); until(() -> panel.getGameState() == CHARACTER_STATE, "inventory"); key(robot, VK_C);
+      Color field = robot.getPixelColor(origin.x + 120, origin.y + 100);
+      key(robot, VK_C); until(() -> panel.getGameState() == CHARACTER_STATE
+          && !field.equals(robot.getPixelColor(origin.x + 120, origin.y + 100)), "inventory");
+      capture(robot, panel, "inventory"); key(robot, VK_C);
       key(robot, VK_X); until(() -> panel.getGameMap().isMiniMapOn(), "minimap");
-      key(robot, VK_M); until(() -> panel.getGameState() == MAP_STATE, "full map"); key(robot, VK_M);
+      key(robot, VK_M); until(() -> panel.getGameState() == MAP_STATE
+          && robot.getPixelColor(origin.x + 100, origin.y + 45).equals(Color.BLACK), "full map");
+      capture(robot, panel, "map"); key(robot, VK_M);
       var previous = panel.getTileManager().getGameMaps().get(map);
       key(robot, VK_R); until(() -> panel.getTileManager().getGameMaps().get(map) != previous, "dev reload");
       until(() -> panel.getGameThread().isAlive() && !east.remainingPath().isEmpty(), "live play after reload");

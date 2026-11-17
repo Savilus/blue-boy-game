@@ -130,6 +130,9 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
   @Getter(AccessLevel.NONE)
   @Setter(AccessLevel.NONE)
   private PathFollower pathFollower;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  private Rectangle strikeBounds;
   private int dialogueIndex = 0;
   private boolean hpBarOn = false;
   private boolean onPath;
@@ -648,8 +651,9 @@ public abstract class Actor implements DepthDrawable, CollisionBody, DialogueSpe
     int originalX = worldX;
     int originalY = worldY;
     Rectangle body = solidArea;
-    attackArea.setLocation(body.x, body.y);
-    solidArea = attackArea;
+    if (strikeBounds == null) strikeBounds = new Rectangle();
+    strikeBounds.setBounds(body.x, body.y, attackArea.width, attackArea.height);
+    solidArea = strikeBounds;
     try {
       switch (direction) {
         case UP -> worldY -= attackArea.height;

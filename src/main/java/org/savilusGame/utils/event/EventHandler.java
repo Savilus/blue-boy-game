@@ -40,6 +40,7 @@ public class EventHandler {
   String tempMap;
   final GamePanel gamePanel;
   final Map<String, EventRect[][]> eventRect = new HashMap<>();
+  @Getter(AccessLevel.NONE)
   final Map<String, Runnable> mapHandlers = Map.of(
       MAIN_MAP, this::handleMainMapEvents,
       DUNGEON_FIRST_FLOR, this::handleDungeonFirstFloorEvents,

@@ -43,5 +43,7 @@ class WorldNavigationTest {
     assertFalse(world.navigationGrid().isWalkable(0, 0));
     world.switchMap(MAIN_MAP);
     assertTrue(world.navigationGrid().isWalkable(column, row));
+    world.switchMap("missing-terrain");
+    assertThrows(IllegalStateException.class, world::navigationGrid);
   }
 }

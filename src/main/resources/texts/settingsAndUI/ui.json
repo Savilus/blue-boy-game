@@ -17,7 +17,9 @@
     "gameOver": "Game Over",
     "yourCoin": "Your Coin: %s",
     "life": "Life ",
-    "mana": "Mana "
+    "mana": "Mana ",
+    "cursorSelector": ">",
+    "lifeFormat": "%s / %s"
   },
   "gameStats": {
     "level": "Level",
@@ -46,5 +48,22 @@
     "dusk": "Dusk",
     "night": "Night",
     "dawn": "Dawn"
+  },
+  "controlKeys": {
+    "move": "WASD",
+    "confirmAttack": "Enter",
+    "shootCast": "F",
+    "parry": "SPACE",
+    "characterScreen": "C",
+    "pause": "P",
+    "options": "ESC",
+    "map": "X/M"
+  },
+  "debugLabels": {
+    "worldX": "WorldX -> ",
+    "worldY": "WorldY ->",
+    "column": "Col ->",
+    "row": "Row -> ",
+    "godMode": "God Mode: -> "
   }
 }

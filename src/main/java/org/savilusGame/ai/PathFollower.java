@@ -1,6 +1,7 @@
 package org.savilusGame.ai;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.savilusGame.service.PathfindingService;
 
@@ -14,7 +15,7 @@ public final class PathFollower {
   private List<Node> remaining = List.of();
 
   public PathFollower(PathfindingService finder) {
-    this.finder = finder;
+    this.finder = Objects.requireNonNull(finder);
   }
 
   public List<Node> remaining() {
@@ -22,6 +23,7 @@ public final class PathFollower {
   }
 
   public Node nextStep(NavigationGrid currentGrid, int column, int row, int goalColumn, int goalRow) {
+    Objects.requireNonNull(currentGrid);
     if (grid == currentGrid && goal.isAt(goalColumn, goalRow)) {
       if (position.isAt(column, row)) return next();
       if (!remaining.isEmpty() && remaining.getFirst().isAt(column, row)) {
@@ -30,10 +32,12 @@ public final class PathFollower {
         return next();
       }
     }
-    position = new Node(column, row);
-    goal = new Node(goalColumn, goalRow);
+    var start = new Node(column, row);
+    var target = new Node(goalColumn, goalRow);
+    remaining = finder.search(currentGrid, start, target).orElse(List.of());
+    position = start;
+    goal = target;
     grid = currentGrid;
-    remaining = finder.search(grid, position, goal).orElse(List.of());
     return next();
   }
 

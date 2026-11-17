@@ -66,7 +66,15 @@ jobs:
           fi
       - name: Retain the real frames for visual review
         if: always() && hashFiles('build/desktop-check/*.png') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: chase-frames
           path: build/desktop-check/*.png
+
+      - name: Attach compact frame previews to the verification check
+        shell: bash
+        run: |
+          for frame in build/desktop-check/*.png; do
+            preview=$(convert "$frame" -sample 320x192 PNG8:- | base64 -w0)
+            echo "::notice title=Frame $(basename "$frame")::data:image/png;base64,$preview"
+          done

@@ -80,6 +80,19 @@ class ChaseOverlayTest {
     assertEquals(asleep, draw().getRGB(endX, endY));
   }
 
+  @Test
+  void adjacentChaserKeepsItsLastStepUntilItActuallyReachesTheGoal() {
+    for (int[] column : panel.getTileManager().getGameMaps().get(MAIN_MAP)) Arrays.fill(column, 10);
+    panel.getPlayer().setWorldPosition(25 * TILE_SIZE, 25 * TILE_SIZE);
+    var slime = chasingSlime(24);
+    assertTrue(slime.isOnPath());
+    assertEquals(1, slime.remainingPath().size());
+    slime.setWorldPosition(25 * TILE_SIZE, 25 * TILE_SIZE);
+    slime.setAction();
+    assertFalse(slime.isOnPath());
+    assertTrue(slime.remainingPath().isEmpty());
+  }
+
   private GreenSlime chasingSlime(int column) {
     var slime = new GreenSlime(panel);
     slime.setWorldPosition(column * TILE_SIZE, 25 * TILE_SIZE);

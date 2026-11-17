@@ -12,9 +12,11 @@ public class UtilityTool {
 
     BufferedImage scaledImage = new BufferedImage(width, height, originalImage.getType());
     Graphics2D g2 = scaledImage.createGraphics();
-    g2.drawImage(originalImage, 0, 0, width, height, null);
-    g2.dispose();
-
-    return scaledImage;
+    try {
+      g2.drawImage(originalImage, 0, 0, width, height, null);
+      return scaledImage;
+    } finally {
+      g2.dispose();
+    }
   }
 }

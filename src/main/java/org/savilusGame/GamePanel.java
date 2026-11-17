@@ -381,15 +381,15 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Aud
       int y = 400;
       int lineHeight = 20;
 
-      tempGraphic2d.drawString("WorldX -> " + player.getWorldX(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "worldX") + player.getWorldX(), x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("WorldY ->" + player.getWorldY(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "worldY") + player.getWorldY(), x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("Col ->" + (player.getWorldX() + player.getSolidArea().x) / TILE_SIZE, x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "column") + (player.getWorldX() + player.getSolidArea().x) / TILE_SIZE, x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("Row -> " + (player.getWorldY() + player.getSolidArea().y) / TILE_SIZE, x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "row") + (player.getWorldY() + player.getSolidArea().y) / TILE_SIZE, x, y);
       y += lineHeight;
-      tempGraphic2d.drawString("God Mode: -> " + keyHandler.isGodModeOn(), x, y);
+      tempGraphic2d.drawString(getUiText("debugLabels", "godMode") + keyHandler.isGodModeOn(), x, y);
     }
   }
 

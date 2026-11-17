@@ -237,6 +237,7 @@ class ActorBehaviorTest {
     assertEquals(100, actor.getWorldX());
     assertEquals(200, actor.getWorldY());
     assertSame(body, actor.getSolidArea());
+    assertEquals(new Rectangle(0, 0, 31, 7), actor.getAttackArea());
     assertEquals(new Rectangle(4, 7, 9, 12), body);
   }
 }

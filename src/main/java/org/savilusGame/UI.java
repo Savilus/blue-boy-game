@@ -50,17 +50,7 @@ public class UI {
   static final String MERCHANT_TO_MUCH_ITEMS_DIALOGUE_KEY = "merchantNpcTooMuchItems";
   static final String MERCHANT_TRADE_DIALOGUE_KEY = "merchantNpcTradeQuestion";
   static final String MERCHANT_CANNOT_SELL_KEY = "merchantNpcCannotSellItem";
-  static final String CURSOR_SELECTOR = ">";
-  static final String PLAYER_LIFE_FORMAT = "%s / %s";
-  static final String CHARACTER_CONTROL = "WASD";
-  static final String CONFIRM = "Enter";
-  static final String PROJECTILE_KEY = "F";
-  static final String CHARACTER_KEY = "C";
-  static final String PAUSE_KEY = "P";
-  static final String MAP_KEY = "X/M";
   static final String MAP = "map";
-  static final String CLOSE_KEY = "ESC";
-  static final String SPACE_KEY = "SPACE";
   static final String MENU_OPTIONS = "menuOptions";
   static final String DIALOGUES = "dialogues";
   static final String SETTINGS = "settings";
@@ -101,6 +91,7 @@ public class UI {
   static final String CHARACTER_SCREEN = "characterScreen";
   static final String CONTROL = "control";
   static final String CONTROLS = "controls";
+  static final String CONTROL_KEYS = "controlKeys";
   static final String PAUSE = "pause";
   static final String BUY = "buy";
   static final String SHOP = "shop";
@@ -109,6 +100,8 @@ public class UI {
   static final String ESCAPE_BACK = "escapeBack";
   static final String YOUR_COIN = "yourCoin";
 
+  final String cursorSelector = TextManager.getUiText(UI_MESSAGES, "cursorSelector");
+  final String lifeFormat = TextManager.getUiText(UI_MESSAGES, "lifeFormat");
   String currentDialogue = StringUtils.EMPTY;
   static final Color LIFE_BAR_BACKGROUND = new Color(35, 35, 35);
   static final Color LIFE_BAR_FILL = new Color(255, 0, 30);
@@ -118,14 +111,35 @@ public class UI {
   static final Color GAME_OVER_BACKGROUND = new Color(0, 0, 0, 150);
   static final BasicStroke OPTION_OUTLINE = new BasicStroke(2);
   static final BasicStroke CURSOR_OUTLINE = new BasicStroke(3);
-
   static final BasicStroke WINDOW_OUTLINE = new BasicStroke(5);
+
   final BufferedImage heartFull, heartHalf, heartBlank, manaCrystalFull, manaCrystalBlank, coin;
   final GamePanel gamePanel;
   Graphics2D graphics2D;
   final UiFonts fonts;
   final ArrayList<String> messages = new ArrayList<>();
   final ArrayList<Integer> messageCounter = new ArrayList<>();
+  @Getter(AccessLevel.NONE)
+  final List<String> optionsLabels = List.of(
+      TextManager.getSettingText(CONTROLS, MOVE),
+      TextManager.getSettingText(CONTROLS, CONFIRM_ATTACK),
+      TextManager.getSettingText(CONTROLS, SHOOT_CAST),
+      TextManager.getSettingText(CONTROLS, PARRY),
+      TextManager.getSettingText(CONTROLS, CHARACTER_SCREEN),
+      TextManager.getSettingText(CONTROLS, PAUSE),
+      TextManager.getSettingText(MENU_OPTIONS, OPTIONS),
+      TextManager.getSettingText(CONTROLS, MAP));
+  @Getter(AccessLevel.NONE)
+  final List<String> controlLabels = List.of(
+      TextManager.getUiText(CONTROL_KEYS, MOVE),
+      TextManager.getUiText(CONTROL_KEYS, CONFIRM_ATTACK),
+      TextManager.getUiText(CONTROL_KEYS, SHOOT_CAST),
+      TextManager.getUiText(CONTROL_KEYS, PARRY),
+      TextManager.getUiText(CONTROL_KEYS, CHARACTER_SCREEN),
+      TextManager.getUiText(CONTROL_KEYS, PAUSE),
+      TextManager.getUiText(CONTROL_KEYS, OPTIONS),
+      TextManager.getUiText(CONTROL_KEYS, MAP));
+  @Getter(AccessLevel.NONE)
   final List<String> titleOptions = List.of(TextManager.getSettingText(MENU_OPTIONS, NEW_GAME),
       TextManager.getSettingText(MENU_OPTIONS, LOAD_GAME), TextManager.getSettingText(MENU_OPTIONS, QUIT));
 
@@ -196,17 +210,6 @@ public class UI {
     textX = frameX + TILE_SIZE;
     textY += TILE_SIZE;
 
-    String[] optionsLabels = {
-        TextManager.getSettingText(CONTROLS, MOVE),
-        TextManager.getSettingText(CONTROLS, CONFIRM_ATTACK),
-        TextManager.getSettingText(CONTROLS, SHOOT_CAST),
-        TextManager.getSettingText(CONTROLS, PARRY),
-        TextManager.getSettingText(CONTROLS, CHARACTER_SCREEN),
-        TextManager.getSettingText(CONTROLS, PAUSE),
-        TextManager.getSettingText(MENU_OPTIONS, OPTIONS),
-        TextManager.getSettingText(CONTROLS, MAP)
-    };
-
     for (String label : optionsLabels) {
       graphics2D.drawString(label, textX, textY);
       textY += TILE_SIZE - 10;
@@ -214,11 +217,6 @@ public class UI {
 
     textX = frameX + TILE_SIZE * 6;
     textY = frameY + TILE_SIZE * 2;
-
-    String[] controlLabels = {
-        CHARACTER_CONTROL, CONFIRM, PROJECTILE_KEY,
-        SPACE_KEY, CHARACTER_KEY, PAUSE_KEY, CLOSE_KEY, MAP_KEY
-    };
 
     for (String key : controlLabels) {
       graphics2D.drawString(key, textX, textY);
@@ -231,7 +229,7 @@ public class UI {
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, BACK), textX, textY);
 
     if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         subState = MAIN_SETTINGS;
         commandNum = 3;
@@ -388,14 +386,14 @@ public class UI {
     y += TILE_SIZE * 4;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, RETRY), x, y);
     if (commandNum == 0)
-      graphics2D.drawString(CURSOR_SELECTOR, x - 40, y);
+      graphics2D.drawString(cursorSelector, x - 40, y);
 
     // BACK TO TITLE SCREEN
     x = getXForCenteredText(TextManager.getSettingText(MENU_OPTIONS, QUIT));
     y += 55;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, QUIT), x, y);
     if (commandNum == 1)
-      graphics2D.drawString(CURSOR_SELECTOR, x - 40, y);
+      graphics2D.drawString(cursorSelector, x - 40, y);
   }
 
   private void drawOptionsScreen() {
@@ -445,21 +443,21 @@ public class UI {
     y += TILE_SIZE;
     graphics2D.drawString(TextManager.getUiText(SHOP, BUY), x, y);
     if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, x - 24, y);
+      graphics2D.drawString(cursorSelector, x - 24, y);
       if (gamePanel.getKeyHandler().isEnterPressed())
         subState = NPC_INVENTORY;
     }
     y += TILE_SIZE;
     graphics2D.drawString(TextManager.getUiText(SHOP, SELL), x, y);
     if (commandNum == 1) {
-      graphics2D.drawString(CURSOR_SELECTOR, x - 24, y);
+      graphics2D.drawString(cursorSelector, x - 24, y);
       if (gamePanel.getKeyHandler().isEnterPressed())
         subState = PLAYER_INVENTORY;
     }
     y += TILE_SIZE;
     graphics2D.drawString(TextManager.getUiText(SHOP, LEAVE), x, y);
     if (commandNum == 2) {
-      graphics2D.drawString(CURSOR_SELECTOR, x - 24, y);
+      graphics2D.drawString(cursorSelector, x - 24, y);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         commandNum = 0;
         dialogueObject.startDialogue(dialogueObject, MERCHANT_COME_AGAIN_DIALOGUE_KEY);
@@ -585,7 +583,7 @@ public class UI {
     textY += TILE_SIZE * 3;
     graphics2D.drawString(TextManager.getUiText(DIALOGUES, YES), textX, textY);
     if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         gamePanel.stopBGM();
         subState = MENU;
@@ -601,7 +599,7 @@ public class UI {
     textY += TILE_SIZE;
     graphics2D.drawString(TextManager.getUiText(DIALOGUES, NO), textX, textY);
     if (commandNum == 1) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         subState = MAIN_SETTINGS;
         commandNum = 4;
@@ -623,7 +621,7 @@ public class UI {
     textY += TILE_SIZE * 2;
     graphics2D.drawString(TextManager.getSettingText(SETTINGS, FULL_SCREEN), textX, textY);
     if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         gamePanel.setFullScreenOn(!gamePanel.isFullScreenOn());
         subState = FULL_SCREEN_OPTION;
@@ -634,18 +632,18 @@ public class UI {
     textY += TILE_SIZE;
     graphics2D.drawString(TextManager.getSettingText(SETTINGS, MUSIC), textX, textY);
     if (commandNum == 1)
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
 
     // SE
     textY += TILE_SIZE;
     graphics2D.drawString(TextManager.getSettingText(SETTINGS, SOUND_EFFECT), textX, textY);
     if (commandNum == 2)
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
     // CONTROL
     textY += TILE_SIZE;
     graphics2D.drawString(TextManager.getSettingText(CONTROLS, CONTROL), textX, textY);
     if (commandNum == 3) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         subState = CONTROL_OPTIONS;
         commandNum = 0;
@@ -656,7 +654,7 @@ public class UI {
     textY += TILE_SIZE;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, END_GAME), textX, textY);
     if (commandNum == 4) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         subState = SubState.END_GAME;
         commandNum = 0;
@@ -667,7 +665,7 @@ public class UI {
     textY += TILE_SIZE * 2;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, BACK), textX, textY);
     if (commandNum == 5) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         gamePanel.setGameState(PLAY_STATE);
         commandNum = 0;
@@ -805,7 +803,7 @@ public class UI {
     textY = frameY + TILE_SIZE * 9;
     graphics2D.drawString(TextManager.getSettingText(MENU_OPTIONS, BACK), textX, textY);
     if (commandNum == 0) {
-      graphics2D.drawString(CURSOR_SELECTOR, textX - 25, textY);
+      graphics2D.drawString(cursorSelector, textX - 25, textY);
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         subState = MAIN_SETTINGS;
       }
@@ -887,7 +885,7 @@ public class UI {
     graphics2D.drawString(value, textX, textY);
     textY += lineHeight;
 
-    String playerLife = String.format(PLAYER_LIFE_FORMAT, gamePanel.getPlayer().getCurrentLife(), gamePanel.getPlayer().getMaxLife());
+    String playerLife = String.format(lifeFormat, gamePanel.getPlayer().getCurrentLife(), gamePanel.getPlayer().getMaxLife());
     textX = getXForAlignTextToRight(playerLife, tailX);
     graphics2D.drawString(playerLife, textX, textY);
     textY += lineHeight;
@@ -1004,7 +1002,7 @@ public class UI {
       graphics2D.drawString(titleOptions.get(i), x, y);
 
       if (commandNum == i) {
-        graphics2D.drawString(CURSOR_SELECTOR, x - TILE_SIZE, y);
+        graphics2D.drawString(cursorSelector, x - TILE_SIZE, y);
       }
 
       y += TILE_SIZE;
