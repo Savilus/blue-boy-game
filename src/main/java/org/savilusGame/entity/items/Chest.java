@@ -24,7 +24,7 @@ public class Chest extends InteractiveObject {
   public Chest(GamePanel gamePanel) {
     super(gamePanel);
     gameObject = GameObject.CHEST;
-    name = GameObject.CHEST.getName();
+    name = TextManager.getItemName(GameObject.CHEST.getTextKey());
     mainImage = SpriteLoader.load(CHEST, TILE_SIZE, TILE_SIZE);
     mainImage2 = SpriteLoader.load(CHEST_OPENED, TILE_SIZE, TILE_SIZE);
     collision = true;

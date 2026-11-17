@@ -24,7 +24,9 @@ import org.savilusGame.entity.InteractiveObject;
 import org.savilusGame.entity.items.Chest;
 import org.savilusGame.entity.items.IronDoor;
 import org.savilusGame.entity.monster.SkeletonLord;
+import org.savilusGame.enums.Area;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.utils.text.TextManager;
 
 class SaveLoadTest {
   @TempDir Path directory;
@@ -36,15 +38,30 @@ class SaveLoadTest {
   @BeforeEach
   void setUp() {
     panel = new GamePanel();
-    panel.getAssetSetter().setObject();
-    panel.getAssetSetter().setInteractiveTiles();
-    panel.getAssetSetter().setMonster();
-    panel.getAssetSetter().setNPC();
-    panel.getAssetSetter().setProjectile();
-    panel.getAssetSetter().setInteractiveObjects();
+    seed(panel);
     json = directory.resolve("save.json");
     legacy = directory.resolve("save.dat");
     saveLoad = new SaveLoad(panel, json, legacy);
+  }
+
+  private static void seed(GamePanel gamePanel) {
+    gamePanel.getAssetSetter().setObject();
+    gamePanel.getAssetSetter().setInteractiveTiles();
+    gamePanel.getAssetSetter().setMonster();
+    gamePanel.getAssetSetter().setNPC();
+    gamePanel.getAssetSetter().setProjectile();
+    gamePanel.getAssetSetter().setInteractiveObjects();
+  }
+
+  /**
+   * Panel whose {@code setNextArea} fails, i.e. a failure in the very last step of applying a
+   * loaded save, after the world, map and player have already been replaced.
+   */
+  private static final class FailingGamePanel extends GamePanel {
+    @Override
+    public void setNextArea(Area nextArea) {
+      throw new IllegalStateException("simulated failure while applying the save");
+    }
   }
 
   @Test
@@ -181,8 +198,9 @@ class SaveLoadTest {
     old.setExp(player.getExp());
     old.setNextLevelExp(player.getNextLevelExp());
     old.setMoney(player.getMoney());
-    old.getItemNames().add(GameObject.NORMAL_SWORD.getName());
-    old.getItemNames().add(GameObject.WOOD_SHIELD.getName());
+    // Legacy saves stored the localized display name, not the stable id.
+    old.getItemNames().add(TextManager.getItemName(GameObject.NORMAL_SWORD.getTextKey()));
+    old.getItemNames().add(TextManager.getItemName(GameObject.WOOD_SHIELD.getTextKey()));
     old.getItemAmounts().add(1);
     old.getItemAmounts().add(1);
     old.setCurrentWeaponSlot(0);
@@ -196,5 +214,53 @@ class SaveLoadTest {
     assertTrue(Files.exists(json));
     assertEquals(GameObject.NORMAL_SWORD.name(), panel.getPlayer().getCurrentWeapon().getId());
     assertInstanceOf(ObjectNode.class, new ObjectMapper().readTree(Files.readString(json)));
+  }
+
+  @Test
+  void failedApplicationRestoresThePreviousLiveState() {
+    FailingGamePanel failing = new FailingGamePanel();
+    seed(failing);
+    SaveLoad failingSaveLoad = new SaveLoad(failing, json, legacy);
+    var player = failing.getPlayer();
+    var world = failing.getWorld();
+
+    player.setLevel(4);
+    player.setCurrentLife(5);
+    player.setMoney(250);
+    world.switchMap(MAIN_MAP);
+    assertTrue(failingSaveLoad.save());
+
+    player.setLevel(9);
+    player.setCurrentLife(1);
+    player.setMoney(3);
+    world.switchMap(DUNGEON_FIRST_FLOR);
+    int objectsBefore = world.objects(MAIN_MAP).size();
+
+    assertFalse(failingSaveLoad.load());
+
+    assertEquals(9, player.getLevel(), "Level must be rolled back");
+    assertEquals(1, player.getCurrentLife(), "Life must be rolled back");
+    assertEquals(3, player.getMoney(), "Money must be rolled back");
+    assertEquals(DUNGEON_FIRST_FLOR, world.getCurrentMap(), "Current map must be rolled back");
+    assertEquals(objectsBefore, world.objects(MAIN_MAP).size(), "World objects must be rolled back");
+    assertFalse(failing.getUi().getMessages().isEmpty(), "The player must be told the load failed");
+  }
+
+  @Test
+  void defaultConstructorStoresTheSaveInThePerUserDataDirectory() {
+    String previous = System.getProperty(UserDataDirectory.OVERRIDE_PROPERTY);
+    try {
+      System.setProperty(UserDataDirectory.OVERRIDE_PROPERTY, directory.toString());
+      SaveLoad defaultsSaveLoad = new SaveLoad(panel);
+
+      assertTrue(defaultsSaveLoad.save());
+      assertTrue(Files.exists(directory.resolve(SaveLoad.SAVE_FILE_NAME)));
+    } finally {
+      if (previous == null) {
+        System.clearProperty(UserDataDirectory.OVERRIDE_PROPERTY);
+      } else {
+        System.setProperty(UserDataDirectory.OVERRIDE_PROPERTY, previous);
+      }
+    }
   }
 }

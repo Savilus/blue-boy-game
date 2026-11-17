@@ -38,7 +38,23 @@ to the bottom FIXED list and renumber OPEN and FIXED separately from 1.
 
 **Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified.
 
-**Remaining:** the final application phase can still leave live state partially changed if it fails. The finding remains `OPEN` until that failure path is resolved and verified.
+**Remaining (historical):** the final application phase could still leave live state partially changed if it failed.
+
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `SaveLoad.load()` captures a
+`data/LiveStateBackup` after preparation and before `apply()` — per-map objects/drops/NPCs/monsters/interactive tiles,
+completed events, current map, boss/event flags, event-tracker fields, player statistics and inventory, and the current
+area. Any `RuntimeException` while applying the prepared save now restores that snapshot, reports the failure to the
+player and returns `false`, so a failed load leaves the previous game state in place instead of a half-restored world.
+Save handling itself is unchanged from the description above (versioned JSON, `~/.blue-boy/save.json`, atomic
+same-directory replacement, legacy `save.dat` import that never deletes the original).
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `data/SaveLoad.java`, new `data/LiveStateBackup.java`,
+`data/UserDataDirectory.java`, `SaveLoadTest.java`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment: no JDK 25, no Gradle distribution and no Maven Central access (only GitHub/PyPI hosts are reachable). Structural syntax check of all 112 `.java` files with a Java grammar parser passed (112/112 parsed); `SaveLoadTest.failedApplicationRestoresThePreviousLiveState` (new)
+and `SaveLoadTest.defaultConstructorStoresTheSaveInThePerUserDataDirectory` (new) still have to run via
+`./gradlew test`, and the touched flows still have to be exercised manually. The finding stays `OPEN` until that is
+done and green.
 
 <a id="finding-11"></a>
 
@@ -60,6 +76,19 @@ A reward granting 12 exp at 5 exp/level should yield two levels and 2 remainder 
 
 **Fix:** `while (exp >= nextLevelExp) { exp -= nextLevelExp; level++; nextLevelExp += 5; ... }`
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `Player.checkLevelUp()` now
+subtracts each reached threshold in a loop, so overflow experience is kept and one reward can grant several levels;
+the +5 curve and the +2 life bonus are unchanged and lifted into named constants (`NEXT_LEVEL_EXP_STEP`,
+`LEVEL_UP_LIFE_BONUS`). Experience enters through a new package-private `Player.gainExperience(int)` (used by
+`damageMonster`), which is the test seam; the level-up sound, state change and dialogue fire once per reward, after
+the loop, not once per level.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `entity/Player.java`, new `PlayerLevelUpTest.java`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment: no JDK 25, no Gradle distribution and no Maven Central access (only GitHub/PyPI hosts are reachable). Structural syntax check of all 112 `.java` files with a Java grammar parser passed (112/112 parsed); `PlayerLevelUpTest` (5 tests: below threshold, 12 exp → level 2 with
+7 exp carried, 15 exp → level 3 with 0 exp, non-positive rewards, dialogue opened once) still has to run via
+`./gradlew test`. The finding stays `OPEN` until then.
+
 <a id="finding-12"></a>
 
 ### 3. The game cannot run from anything but the project root, and cannot be distributed — 🔴 OPEN
@@ -78,6 +107,29 @@ Bundled texts are read via **filesystem paths relative to the CWD** (`src/main/r
 - Put user state in a per-user directory (`${user.home}/.blue-boy/` or OS conventions): `save.json`, `config.properties`.
 - Keep bundled defaults on the classpath; never write into `src/` at runtime.
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `TextLoader` now reads every
+text file through `getResourceAsStream` using a bundled index (`src/main/resources/texts/index.json`); a missing,
+unreadable or malformed file aborts start-up with the offending resource name, and `TextManager` fails fast on a
+missing group/key instead of returning `null` into the next statement. Settings moved to
+`~/.blue-boy/config.properties` (`Config`, written atomically and only when a value changed), saves to
+`~/.blue-boy/save.json`, and the working directory is consulted only for the one-time legacy `save.dat` import. The
+per-user directory is overridable with `-Dblueboy.dataDir=...`, and `UserDataDirectory` is the single place that
+resolves it. Images, fonts, sounds, tile maps and `config.yml` already used the classpath and are unchanged.
+
+**Remaining:** actual packaging (jar/jpackage) and the still-committed `src/main/gameConfig.txt` artefact are separate
+findings ([OPEN 21](#finding-30), [OPEN 40](#finding-54), [OPEN 60](#finding-73)); class and working-directory
+independence is what this change delivers.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `utils/text/TextLoader.java`, new
+`src/main/resources/texts/index.json`, `utils/text/TextManager.java`, `config/Config.java`, new
+`data/UserDataDirectory.java`, `data/SaveLoad.java`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment: no JDK 25, no Gradle distribution and no Maven Central access (only GitHub/PyPI hosts are reachable). Structural syntax check of all 112 `.java` files with a Java grammar parser passed (112/112 parsed); new `TextLoaderTest` (classpath loading, index/list parity per
+category, unknown category, missing-key fast failure), `ConfigTest` (round trip in a temp directory, defaults, no
+rewrite when nothing changed, corrupt values, unreadable path) and `UserDataDirectoryTest` still have to run via
+`./gradlew test`. Running the game from another working directory was not exercised (no JDK available). The finding
+stays `OPEN` until then.
+
 <a id="finding-13"></a>
 
 ### 4. `GameObject` enum does I/O inside its constructor — 🔴 OPEN
@@ -89,6 +141,22 @@ Enum class-init now depends on the filesystem ([OPEN 3](#finding-12)) and on `Te
 
 **Fix:** store only `textKey` in the enum; resolve display names via `TextManager.getItemName(key)` at the call site (or via a cached lookup in a `ItemCatalog`). The enum becomes a pure constant holder — as enums should be.
 
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification):** `GameObject` now holds only the
+stable `textKey`; its constructor performs no lookups and the enum no longer imports `TextManager`. Every display
+name is resolved at the call site through `TextManager.getItemName(gameObject.getTextKey())` (`Item`, `Chest`,
+`Door`, `IronDoor`, `Fireball`, `Rock`, `BigRock`, `MetalPlate`). `getObjectFromName` (localized-name matching) was
+removed from the enum; the legacy-save fallback that still has to accept localized names lives in
+`GameEntityFactory.resolve`, next to the migration it serves. Identity everywhere remains the enum constant name.
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — `enums/GameObject.java`, `entity/item/Item.java`,
+`entity/items/{Chest,Door,IronDoor}.java`, `entity/projectile/{Fireball,Rock}.java`,
+`entity/interactiveObjects/BigRock.java`, `entity/interactiveTile/MetalPlate.java`, `entity/GameEntityFactory.java`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment: no JDK 25, no Gradle distribution and no Maven Central access (only GitHub/PyPI hosts are reachable). Structural syntax check of all 112 `.java` files with a Java grammar parser passed (112/112 parsed); `ActorBehaviorTest.factoryCreatesBlueHeart`,
+`SaveLoadTest.unknownInventoryItemDoesNotShiftSavedEquipmentSlots` and
+`SaveLoadTest.importsLegacySaveAndWritesVersionedJson` (which now feeds localized legacy names through the factory
+fallback) still have to run via `./gradlew test`. The finding stays `OPEN` until then.
+
 <a id="finding-14"></a>
 
 ### 5. `KeyHandler`: cheats and `System.exit` in release input paths — 🔴 OPEN
@@ -99,6 +167,25 @@ Enum class-init now depends on the filesystem ([OPEN 3](#finding-12)) and on `Te
 None of this is gated behind a flag. For a game "developed into a big one", debug/cheat entry points should live behind a `devMode` property (`-Dblueboy.dev=true`) or a hidden settings toggle, not shipped unconditionally. Direct `System.exit` bypasses application cleanup unless it is registered as a JVM shutdown hook (music line cleanup, atomic save on exit — see [OPEN 67](#finding-76)).
 
 **Fix:** central `DevMode` gate; route quit through `windowClosing`/a `GameController.quit()` that stops audio and (optionally) auto-saves; use Swing **Key Bindings** (`InputMap`/`ActionMap`) instead of a raw `KeyListener` so input works regardless of focus and is remappable — which also sets up future control rebinding (an obvious next feature for a game with WASD hard-coded in `KeyHandler`).
+
+**Resolution in the current worktree (reassessed 2026-11-17, awaiting verification; partial):** a new `config.DevMode`
+(release default: off, enabled with `-Dblueboy.dev=true`) is injected into `KeyHandler`; `VK_G`, `VK_T` and `VK_R` are
+inert unless it is enabled. `System.exit` is gone from the input path: the title-menu quit calls the new
+`GamePanel.quitGame()`, which stops music and sound effects, ends the game loop, closes the window and terminates the
+JVM; the window's close button is wired to the same method (`DO_NOTHING_ON_CLOSE` + listener), so cleanup cannot be
+skipped. `Sound.stop()` is null-safe, so quitting before any track played no longer throws. `VK_X` (minimap toggle) is
+kept as a normal feature.
+
+**Remaining:** input is still a raw `KeyListener`; the Swing Key Bindings / remapping migration from the suggested fix
+is deliberately not part of this iteration (it is a cross-screen input refactor, not a cheat/quit fix) and is still
+tracked by this finding and by the remapping item [OPEN 63](#finding-76).
+
+**Change reference:** branch `arena/fc282c94-blue-boy-game` — new `config/DevMode.java`, `utils/KeyHandler.java`,
+`GamePanel.java`, `Main.java`, `Sound.java`.
+
+**Verification (gap):** the JUnit suite could **not** be executed in the agent environment: no JDK 25, no Gradle distribution and no Maven Central access (only GitHub/PyPI hosts are reachable). Structural syntax check of all 112 `.java` files with a Java grammar parser passed (112/112 parsed); new `KeyHandlerTest` (dev keys inert in release builds, active with
+DevMode, map reload gated, title quit routed through `GamePanel.quitGame()`) still has to run via `./gradlew test`.
+Quitting via the window's close button was not exercised manually. The finding stays `OPEN` until then.
 
 <a id="finding-15"></a>
 

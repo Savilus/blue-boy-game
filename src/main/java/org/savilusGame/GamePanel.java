@@ -21,6 +21,7 @@ import javax.swing.*;
 
 import org.savilusGame.ai.PathFinder;
 import org.savilusGame.config.Config;
+import org.savilusGame.config.DevMode;
 import org.savilusGame.data.SaveLoad;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.entity.CollisionBody;
@@ -83,7 +84,8 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
   static final int FPS = 60;
   final TileManager tileManager = new TileManager(this);
   final World world = new World(tileManager, MAIN_MAP);
-  final KeyHandler keyHandler = new KeyHandler(this);
+  final DevMode devMode = DevMode.fromSystemProperties();
+  final KeyHandler keyHandler = new KeyHandler(this, devMode);
   Sound music = new Sound();
   Sound soundEffect = new Sound();
   PathFinder pathFinder = new PathFinder(this);
@@ -151,6 +153,25 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
   @Override
   public void stopBGM() {
     music.stop();
+  }
+
+  /**
+   * The single exit path: stops audio, ends the game loop, closes the window and terminates the
+   * JVM. The title-menu quit and the window's close button both come through here, so cleanup
+   * cannot be skipped by a scattered {@code System.exit} call.
+   */
+  public void quitGame() {
+    stopBGM();
+    soundEffect.stop();
+    gameThread = null;
+    Window window = SwingUtilities.getWindowAncestor(this);
+    if (window == null) {
+      window = Main.window;
+    }
+    if (window != null) {
+      window.dispose();
+    }
+    System.exit(0);
   }
 
   @Override

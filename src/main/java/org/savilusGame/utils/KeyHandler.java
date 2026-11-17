@@ -17,27 +17,33 @@ import static org.savilusGame.enums.SubState.PLAYER_INVENTORY;
 
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.util.Objects;
 
 import org.savilusGame.GamePanel;
 import org.savilusGame.Sound;
+import org.savilusGame.config.DevMode;
 
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class KeyHandler implements KeyListener {
 
   final GamePanel gamePanel;
+  final DevMode devMode;
   boolean upPressed, downPressed, leftPressed, rightPressed, enterPressed, spacePressed, shotKeyPressed;
-  //DEBUG
+  //DEBUG (only reachable when DevMode is enabled)
   boolean showDebugText;
   boolean godModeOn = false;
+
+  public KeyHandler(GamePanel gamePanel, DevMode devMode) {
+    this.gamePanel = Objects.requireNonNull(gamePanel);
+    this.devMode = Objects.requireNonNull(devMode);
+  }
 
   private void titleState(int code) {
     switch (code) {
@@ -71,7 +77,7 @@ public class KeyHandler implements KeyListener {
           }
         }
         if (gamePanel.getUi().getCommandNum() == 2) {
-          System.exit(0);
+          gamePanel.quitGame();
         }
       }
     }
@@ -100,12 +106,22 @@ public class KeyHandler implements KeyListener {
       }
       case KeyEvent.VK_M -> gamePanel.setGameState(MAP_STATE);
       case KeyEvent.VK_X -> gamePanel.getGameMap().setMiniMapOn(!gamePanel.getGameMap().isMiniMapOn());
-      case KeyEvent.VK_G -> godModeOn = !godModeOn;
-
-      //DEBUG
-      case KeyEvent.VK_T -> showDebugText = !showDebugText;
-      //REFRESH MAP
-      case KeyEvent.VK_R -> gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
+      // DEVELOPMENT-ONLY KEYS: inactive unless the game runs with -Dblueboy.dev=true
+      case KeyEvent.VK_G -> {
+        if (devMode.isEnabled()) {
+          godModeOn = !godModeOn;
+        }
+      }
+      case KeyEvent.VK_T -> {
+        if (devMode.isEnabled()) {
+          showDebugText = !showDebugText;
+        }
+      }
+      case KeyEvent.VK_R -> {
+        if (devMode.isEnabled()) {
+          gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
+        }
+      }
     }
   }
 

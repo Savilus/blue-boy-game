@@ -152,7 +152,7 @@ class ActorBehaviorTest {
   @Test
   @DisplayName("factory resolves the blue heart as a blue heart")
   void factoryCreatesBlueHeart() {
-      assertInstanceOf(BlueHeart.class, panel.getGameEntityFactory().getItem(GameObject.BLUE_HEART.getName()));
+      assertInstanceOf(BlueHeart.class, panel.getGameEntityFactory().getItem(GameObject.BLUE_HEART.name()));
   }
 
   @Test

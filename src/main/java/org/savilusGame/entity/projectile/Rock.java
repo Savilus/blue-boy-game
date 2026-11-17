@@ -9,12 +9,13 @@ import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
 import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.enums.GameObject;
+import org.savilusGame.utils.text.TextManager;
 
 public class Rock extends Projectile {
 
   public Rock(GamePanel gamePanel) {
     super(gamePanel);
-    name = GameObject.ROCK.getName();
+    name = TextManager.getItemName(GameObject.ROCK.getTextKey());
     speed = 7;
     maxLife = 50;
     currentLife = maxLife;

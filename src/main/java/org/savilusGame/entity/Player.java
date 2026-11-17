@@ -95,6 +95,8 @@ public class Player extends Actor {
   static final String INVENTORY_FULL = "inventoryFull";
   static final String EVENT_MESSAGES_KEY = "eventMessages";
   static final int MAX_INVENTORY_SIZE = 20;
+  static final int NEXT_LEVEL_EXP_STEP = 5;
+  static final int LEVEL_UP_LIFE_BONUS = 2;
 
   final KeyHandler keyHandler;
 
@@ -316,8 +318,7 @@ public class Player extends Actor {
       monster.setDying(true);
       gamePanel.getUi().addMessage(String.format(TextManager.getUiText(UI_MESSAGE, KILLED_UI_MESSAGE), monster.getName()));
       gamePanel.getUi().addMessage(String.format(TextManager.getUiText(UI_MESSAGE, EXP_UI_MESSAGE), monster.getExp()));
-      exp += monster.getExp();
-      checkLevelUp();
+      gainExperience(monster.getExp());
     }
   }
 
@@ -394,21 +395,39 @@ public class Player extends Actor {
     itemDrops.remove(itemIndex);
   }
 
+  /**
+   * Adds experience and resolves every level the reward pays for. Experience beyond the
+   * current requirement is kept for the next level instead of being discarded, and a single
+   * large reward can therefore grant several levels.
+   */
+  void gainExperience(int amount) {
+    if (amount <= 0) {
+      return;
+    }
+    exp += amount;
+    checkLevelUp();
+  }
+
   private void checkLevelUp() {
-    if (exp >= nextLevelExp) {
+    boolean leveledUp = false;
+    while (exp >= nextLevelExp) {
+      exp -= nextLevelExp;
       level++;
-      nextLevelExp = nextLevelExp + 5;
-      exp = 0;
-      maxLife += 2;
+      nextLevelExp += NEXT_LEVEL_EXP_STEP;
+      maxLife += LEVEL_UP_LIFE_BONUS;
       strength++;
       dexterity++;
-      attack = getAttack();
-      defense = getDefense();
-      gamePanel.playSE(LEVEL_UP);
-      gamePanel.setGameState(DIALOG_STATE);
-
-      startDialogue(this, LVL_UP);
+      leveledUp = true;
     }
+    if (!leveledUp) {
+      return;
+    }
+    attack = getAttack();
+    defense = getDefense();
+    gamePanel.playSE(LEVEL_UP);
+    gamePanel.setGameState(DIALOG_STATE);
+
+    startDialogue(this, LVL_UP);
   }
 
   private void interactNPC(int npcIndex) {
