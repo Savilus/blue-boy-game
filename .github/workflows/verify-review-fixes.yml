@@ -1,0 +1,28 @@
+# Branch-only verification; does not install repository-wide CI or alter merge policy.
+name: Verify review fixes
+on:
+  push:
+    branches: [arena/ada59f4e-blue-boy-game]
+permissions:
+  contents: read
+jobs:
+  gradle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build, test and measure line coverage
+        run: ./gradlew clean build jacocoTestReport
+      - name: Report results
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as xml
+          suites = [xml.parse(path).getroot() for path in Path('build/test-results/test').glob('TEST-*.xml')]
+          counts = {key: sum(int(suite.get(key, 0)) for suite in suites) for key in ('tests','failures','errors','skipped')}
+          counter = xml.parse('build/reports/jacoco/test/jacocoTestReport.xml').find("counter[@type='LINE']")
+          print(f'::notice::JUnit: {counts}; JaCoCo lines: {counter.attrib}')
+          PY
