@@ -20,12 +20,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class RedSlime extends Actor {
 
-  static int STOP_CHASE_DISTANCE = 15;
-  static int START_CHASE_DISTANCE = 5;
-  static int CHASE_POSSIBILITY_RATE = 45;
-  static int SHOOT_POSSIBILITY_RATE = 85;
-  static int SHOOT_INTERVAL = 50;
-  static int RANDOM_DIRECTION_INTERVAL = 80;
+  private static final int STOP_CHASE_DISTANCE = 15;
+  private static final int START_CHASE_DISTANCE = 5;
+  private static final int CHASE_POSSIBILITY_RATE = 45;
+  private static final int SHOOT_POSSIBILITY_RATE = 85;
+  private static final int SHOOT_INTERVAL = 50;
+  private static final int RANDOM_DIRECTION_INTERVAL = 80;
 
   public RedSlime(GamePanel gamePanel) {
     super(gamePanel);

@@ -20,11 +20,10 @@ import lombok.experimental.NonFinal;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GameMap {
 
-  static String CLOSE_MAP_KEY = "closeMapText";
-  static String UI_MESSAGES = "uiMessages";
-  static int MINIMAP_DIAMETER = 200;
-
-  static BasicStroke MINIMAP_OUTLINE = new BasicStroke(3);
+  private static final String CLOSE_MAP_KEY = "closeMapText";
+  private static final String UI_MESSAGES = "uiMessages";
+  private static final int MINIMAP_DIAMETER = 200;
+  private static final BasicStroke MINIMAP_OUTLINE = new BasicStroke(3);
 
   GamePanel gamePanel;
   TileManager tileManager;
@@ -105,5 +104,6 @@ public class GameMap {
       g2.draw(new Ellipse2D.Float(x, y, width, height));
     }
   }
+
   private record MapImage(int[][] layout, BufferedImage image) {}
 }

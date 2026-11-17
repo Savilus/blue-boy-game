@@ -86,12 +86,15 @@ jobs:
               for (String path : args) {
                 var file = new File(path);
                 var image = ImageIO.read(file);
-                var thumb = new BufferedImage(320, 192, BufferedImage.TYPE_INT_RGB);
+                var thumb = new BufferedImage(240, 144, BufferedImage.TYPE_INT_RGB);
                 var g = thumb.createGraphics();
-                try { g.drawImage(image, 0, 0, 320, 192, null); } finally { g.dispose(); }
+                try { g.drawImage(image, 0, 0, 240, 144, null); } finally { g.dispose(); }
                 var out = new ByteArrayOutputStream();
                 ImageIO.write(thumb, "png", out);
-                System.out.println("::notice title=Frame " + file.getName() + "::data:image/png;base64," + Base64.getEncoder().encodeToString(out.toByteArray()));
+                var encoded = Base64.getEncoder().encodeToString(out.toByteArray());
+                for (int from = 0; from < encoded.length(); from += 3800) {
+                  System.out.println("::notice title=Frame " + file.getName() + " part " + from + "::" + encoded.substring(from, Math.min(from + 3800, encoded.length())));
+                }
               }
             }
           }

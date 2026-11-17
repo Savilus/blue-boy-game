@@ -49,10 +49,10 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class SkeletonLord extends Actor {
 
-  static int SHOOT_INTERVAL = 60;
-  static int DIRECT_CHASE_DISTANCE = 8;
-  static int MOVE_TOWARDS_PLAYER_INTERVAL = 60;
-  static int RANDOM_DIRECTION_INTERVAL = 120;
+  private static final int SHOOT_INTERVAL = 60;
+  private static final int DIRECT_CHASE_DISTANCE = 8;
+  private static final int MOVE_TOWARDS_PLAYER_INTERVAL = 60;
+  private static final int RANDOM_DIRECTION_INTERVAL = 120;
 
   int bossScale = 5;
   int widthHeight = TILE_SIZE * bossScale;
