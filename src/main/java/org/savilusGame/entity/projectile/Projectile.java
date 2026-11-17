@@ -9,9 +9,11 @@ import org.savilusGame.enums.Direction;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 @Getter
 @Setter
+@Slf4j
 public abstract class Projectile extends Actor {
 
   private final int SPRITE_CHANGE_INTERVAL = 12;
@@ -41,8 +43,13 @@ public abstract class Projectile extends Actor {
     if (owner == gamePanel.getPlayer()) {
       int monsterIndex = gamePanel.getCollisionDetector().checkEntity(this, gamePanel.getWorld().currentMonsters());
       if (monsterIndex != INIT_INDEX) {
+        var monsters = gamePanel.getWorld().currentMonsters();
+        if (monsters == null || monsterIndex < 0 || monsterIndex >= monsters.size() || monsters.get(monsterIndex) == null) {
+          log.warn("Ignoring invalid monster collision index {}", monsterIndex);
+          return;
+        }
+        var struck = monsters.get(monsterIndex);
         gamePanel.getPlayer().damageMonster(this, monsterIndex, Math.max(1, attack * (gamePanel.getPlayer().getLevel() / 2)), knockBackPower);
-        var struck = gamePanel.getWorld().currentMonsters().get(monsterIndex);
         generateParticle(owner.getProjectile(), struck.getWorldX(), struck.getWorldY());
         alive = false;
       }

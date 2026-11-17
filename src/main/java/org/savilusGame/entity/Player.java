@@ -42,7 +42,6 @@ import static org.savilusGame.config.GameEntityNameFactory.PICK_AXE_RIGHT_1;
 import static org.savilusGame.config.GameEntityNameFactory.PICK_AXE_RIGHT_2;
 import static org.savilusGame.config.GameEntityNameFactory.PICK_AXE_UP_1;
 import static org.savilusGame.config.GameEntityNameFactory.PICK_AXE_UP_2;
-import static org.savilusGame.config.GameEntityNameFactory.RECEIVE_DAMAGE;
 import static org.savilusGame.config.GameEntityNameFactory.SWING_WEAPON;
 import static org.savilusGame.enums.Direction.DOWN;
 import static org.savilusGame.enums.Direction.LEFT;
@@ -68,7 +67,6 @@ import org.savilusGame.entity.projectile.Fireball;
 import org.savilusGame.entity.shield.WoodShield;
 import org.savilusGame.entity.weapon.NormalSword;
 import org.savilusGame.enums.WorldGameTypes;
-import org.savilusGame.service.Interactable;
 import org.savilusGame.utils.KeyHandler;
 import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.utils.text.TextManager;
@@ -77,9 +75,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 
 @Setter
 @Getter
+@Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Player extends Actor {
 
@@ -271,7 +271,7 @@ public class Player extends Actor {
   }
 
   public boolean canObtainItem(Item item) {
-    Item newItem = gamePanel.getGameEntityFactory().getItem(item.getName());
+    Item newItem = gamePanel.getGameEntityFactory().getItem(item.getId());
     if (newItem == null) {
       return false;
     }
@@ -292,8 +292,8 @@ public class Player extends Actor {
   }
 
   public void damageMonster(Actor attacker, int monsterIndex, int attack, int knockBackPower) {
-    if (monsterIndex == INIT_INDEX) return;
-    var monster = gamePanel.getWorld().currentMonsters().get(monsterIndex);
+    var monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
+    if (monster == null) return;
     if (monster.isInvincible()) return;
 
     gamePanel.playSE(HIT_MONSTER);
@@ -322,8 +322,8 @@ public class Player extends Actor {
   }
 
   void damageProjectile(int projectileIndex) {
-    if (projectileIndex != INIT_INDEX) {
-      var projectile = gamePanel.getWorld().currentProjectiles().get(projectileIndex);
+    var projectile = entityAt(gamePanel.getWorld().currentProjectiles(), projectileIndex, "projectile");
+    if (projectile != null) {
       projectile.setAlive(false);
       generateParticle(projectile, projectile.getWorldX(), projectile.getWorldY());
     }
@@ -332,9 +332,9 @@ public class Player extends Actor {
   void damageInteractiveTile(int interactiveTileIndex) {
     var tiles = gamePanel.getWorld().currentInteractiveTiles();
 
-    if (interactiveTileIndex != INIT_INDEX && !tiles.get(interactiveTileIndex).isInvincible()
-        && tiles.get(interactiveTileIndex).isDestructible() && tiles.get(interactiveTileIndex).isCorrectItem(this)) {
-      var interactiveTile = tiles.get(interactiveTileIndex);
+    var interactiveTile = entityAt(tiles, interactiveTileIndex, "interactive tile");
+    if (interactiveTile != null && !interactiveTile.isInvincible()
+        && interactiveTile.isDestructible() && interactiveTile.isCorrectItem(this)) {
       interactiveTile.playSoundEffect();
       interactiveTile.setCurrentLife(interactiveTile.getCurrentLife() - 1);
       interactiveTile.setInvincible(true);
@@ -363,22 +363,19 @@ public class Player extends Actor {
   }
 
   private void pickUpObject(int objectIndex) {
-    if (objectIndex == INIT_INDEX) {
-      return;
-    }
-    var interactedObject = gamePanel.getWorld().currentObjects().get(objectIndex);
-    if (interactedObject instanceof Interactable interactable && keyHandler.isEnterPressed()) {
+    var interactedObject = entityAt(gamePanel.getWorld().currentObjects(), objectIndex, "object");
+    if (interactedObject == null) return;
+    if (keyHandler.isEnterPressed()) {
       attackCanceled = true;
-      interactable.interact();
+      interactedObject.interact();
     }
   }
 
   private void pickUpItems(int itemIndex) {
-    if (itemIndex == INIT_INDEX) {
-      return;
-    }
     var itemDrops = gamePanel.getWorld().currentItems();
-    var item = itemDrops.get(itemIndex).getItem();
+    var drop = entityAt(itemDrops, itemIndex, "item");
+    if (drop == null) return;
+    var item = drop.getItem();
 
     if (item.getType() == WorldGameTypes.PICK_UP) {
       item.use(this);
@@ -415,25 +412,32 @@ public class Player extends Actor {
   }
 
   private void interactNPC(int npcIndex) {
-    if (npcIndex != INIT_INDEX) {
+    var npc = entityAt(gamePanel.getWorld().currentNpc(), npcIndex, "NPC");
+    if (npc != null) {
       if (gamePanel.getKeyHandler().isEnterPressed()) {
         attackCanceled = true;
-        gamePanel.getWorld().currentNpc().get(npcIndex).speak();
+        npc.speak();
       }
-      gamePanel.getWorld().currentNpc().get(npcIndex).move(direction);
+      npc.move(direction);
     }
   }
 
-  private void detectMonsterContact(int monsterIndex) {
-    if (monsterIndex != INIT_INDEX && !invincible && !gamePanel.getWorld().currentMonsters().get(monsterIndex).dying) {
-      int damage = gamePanel.getWorld().currentMonsters().get(monsterIndex).attack - defense;
-      if (damage < 1)
-        damage = 1;
-      currentLife -= damage;
-      gamePanel.playSE(RECEIVE_DAMAGE);
-      invincible = true;
-      transparent = true;
+  void detectMonsterContact(int monsterIndex) {
+    Actor monster = entityAt(gamePanel.getWorld().currentMonsters(), monsterIndex, "monster");
+    if (monster != null) {
+      if (!monster.isDying()) {
+        monster.damagePlayer(monster.getAttack());
+      }
     }
+  }
+
+  private static <T> T entityAt(List<T> entities, int index, String kind) {
+    if (index == INIT_INDEX) return null;
+    if (entities == null || index < 0 || index >= entities.size() || entities.get(index) == null) {
+      log.warn("Ignoring invalid {} collision index {}", kind, index);
+      return null;
+    }
+    return entities.get(index);
   }
 
   private String[] getAttackImages() {

@@ -8,6 +8,7 @@ import java.util.Objects;
 
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.entity.InteractiveObject;
+import org.savilusGame.enums.GameObject;
 
 /** Front-facing tile detection for interactions (e.g. the key opening a door). */
 public final class ObjectDetector {
@@ -19,7 +20,7 @@ public final class ObjectDetector {
    * Index of the object standing in the tile in front of {@code user}, or {@link CollisionDetector#INIT_INDEX}.
    * Mirrors the legacy semantics: the probe point is the user's leading edge, offset by its speed.
    */
-  public static int detect(CollisionBody user, List<InteractiveObject> objects, String targetName) {
+  public static int detect(CollisionBody user, List<InteractiveObject> objects, GameObject targetType) {
     int index = INIT_INDEX;
     if (Objects.isNull(objects) || objects.isEmpty()) {
       return index;
@@ -51,7 +52,7 @@ public final class ObjectDetector {
       if (Objects.nonNull(gameObject)) {
         int objectCol = (gameObject.getWorldX() + gameObject.getSolidArea().x) / TILE_SIZE;
         int objectRow = (gameObject.getWorldY() + gameObject.getSolidArea().y) / TILE_SIZE;
-        if (objectCol == col && objectRow == row && targetName.equals(gameObject.getName())) {
+        if (objectCol == col && objectRow == row && targetType == gameObject.getGameObject()) {
           index = objectIndex;
         }
       }

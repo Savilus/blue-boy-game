@@ -7,141 +7,21 @@ Each finding has:
 - A position, a title and a status: `### 1. Title — 🔴 OPEN`
   or `### 1. Title — 🟢 FIXED`. Red/green indicators supplement the text;
   severity is independent of status and appears below the title when assigned.
-- **Where** — file and line (as of `0511ef2`).
+- **Where** — file and line (historical review at `0511ef2`; selected findings
+  reassessed against `20277f2` and the current worktree as noted below).
 - **What / Why it matters** — the concrete failure mode or cost.
 - **Suggested fix** — the approach I would take, biased toward the fact that this project will keep growing.
 
 `OPEN` includes findings awaiting verification. Mark `FIXED` only with a
 change reference, resolution and verification evidence as required by
-``. After each completed iteration, move verified fixes
+`docs_agents/PROJECT_RULES.md`. After each completed iteration, move verified fixes
 to the bottom FIXED list and renumber OPEN and FIXED separately from 1.
 
 ## OPEN
 
-<a id="finding-1"></a>
-
-### 1. Collision check on the RIGHT direction inspects the wrong column — 🔴 OPEN
-**Severity:** `P0`
-
-**Where:** `src/main/java/org/savilusGame/utils/CollisionDetector.java:68-75` (`checkTile`, `case RIGHT`)
-
-```java
-case RIGHT -> {
-    entityRightCol = (entityRightWorldX + gameEntity.getSpeed()) / TILE_SIZE;
-    tileNum1 = currentMapTiles[entityLeftCol][entityTopRow];   // ← wrong column
-    tileNum2 = currentMapTiles[entityRightCol][entityBottomRow];
-    ...
-}
-```
-
-Every other direction checks both solid corners of the *leading* edge (UP/DOWN check left+right at the new row; LEFT checks both rows at the new column). RIGHT checks the **left** (trailing) column top row and the new bottom row — an asymmetry that lets an entity clip into a wall on its right (top-right corner blocked but tileNum1 passes) and be blocked by a wall behind it while the path ahead is clear.
-
-**Fix:** mirror LEFT exactly:
-```java
-tileNum1 = currentMapTiles[entityRightCol][entityTopRow];
-tileNum2 = currentMapTiles[entityRightCol][entityBottomRow];
-```
-While you are in there: the repeated `getTileManager().getTile()[tileNum].collision()` chains are unreadable; extract `private boolean isSolidTile(int col, int row)` and bounds-check `col/row` (the current code trusts map indices; one out-of-range cell = `ArrayIndexOutOfBoundsException` on the game thread).
-
-<a id="finding-2"></a>
-
-### 2. Attack reach uses `attackArea.height` for horizontal offset — 🔴 OPEN
-**Severity:** `P0`
-
-**Where:** `src/main/java/org/savilusGame/entity/GameEntity.java:413` (`attacking()`)
-
-```java
-case UP    -> worldY -= attackArea.height;
-case DOWN  -> worldY += attackArea.height;
-case LEFT  -> worldX -= attackArea.width;
-case RIGHT -> worldX += attackArea.height;  // ← height, not width
-```
-
-For square attack areas (all current weapons use square areas — `NormalSword` uses 36×36) this is latent; the first non-square weapon or boss area will shift hit resolution vertically-sized but horizontally applied.
-
-**Fix:** `worldX += attackArea.width;`
-
-<a id="finding-3"></a>
-
-### 3. Entity center computed from sprite width/height, swapped — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `GameEntity.java:455-459`
-
-```java
-int getCenterX() { return worldX + up1.getHeight() / 2; }
-int getCenterY() { return worldY + up1.getWidth()  / 2; }
-```
-
-Height is used for X and width for Y, and both are derived from `up1` — the facing-up walk sprite — regardless of what the entity actually is (a boss with a 5×-scaled frame, a chest, a particle…). This silently distorts every distance/aim calculation (`getXDistance`, `moveTowardPlayer`, `checkIfShouldAttack`, A\* goal selection) for entities whose frames aren't square or aren't 48px.
-
-**Fix:** compute the centre from the **solid area**, which is the collision contract with the rest of the engine, e.g. `worldX + solidArea.x + solidArea.width / 2`. That also removes the NPE risk for entities with no walk frames.
-
-<a id="finding-4"></a>
-
-### 4. Monster contact deals damage + 1 flat, bypassing the damage pipeline — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `Player.java:412-424` (`detectMonsterContact`)
-
-```java
-int damage = ...monster.getAttack() - defense;
-if (damage < 1) damage = 1;
-currentLife -= damage;
-...
-currentLife -= 1;   // ← second, unexplained subtraction
-```
-
-Two problems stack here. First, the literal `currentLife -= 1` double-applies damage (almost certainly a leftover from debugging). Second, this duplicates `GameEntity.damagePlayer(int)` with subtly different semantics (no guard/parry handling, no knockback, no `invincibleCounter` parity with the base class). Two damage paths will diverge — they already have.
-
-**Fix:** delete the method and route contact damage through `GameEntity.damagePlayer(attack)` (which already handles parry/guard/knockback/invincibility). One damage pipeline, one place to tune.
-
-<a id="finding-5"></a>
-
-### 5. `GameEntityFactory` maps **BLUE_HEART → BlueShield** — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `GameEntityFactory.java:87`
-
-```java
-entityMap.put(BLUE_HEART, () -> new BlueShield(gamePanel));
-```
-
-Copy-paste slip: picking up a Blue Heart (the boss reward) produces a Blue Shield. There is a `BlueHeart` class; it is only used for the map placement in `AssetSetter`, so the factory path — used by save/load and by `canObtainItem()` — yields the wrong item type, and the inventory then shows a shield the player never had.
-
-**Fix:** `entityMap.put(BLUE_HEART, () -> new BlueHeart(gamePanel));`
-
-<a id="finding-6"></a>
-
-### 6. Save/load indexing assumes `mapsObjects` has every map — it doesn't — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `GameEntity.java:315` (`getDetected`), `AssetSetter.java` (`setObject` creates keys `MAIN_MAP`, `DUNGEON_FIRST_FLOR`, `DUNGEON_SECOND_FLOR` — **no `INTERIOR_MAP`**)
-
-`getDetected()` does `target.get(CURRENT_MAP).size()` with no null check. Using a Key (or any item whose `use()` calls `getDetected`) while inside `interior01.txt` dereferences `null` → `NullPointerException` on the Swing EDT (Key usage is triggered from `selectItem()` ← `KeyHandler` ← `keyPressed`). The exception is swallowed by Swing, `enterPressed` stays in a half-processed state, and the interaction just silently fails.
-
-Same class of bug, different sites: `GamePanel.java:262` (`for (GameEntity projectile : projectiles.get(CURRENT_MAP))` — the one map-entity list *not* null-checked in `drawToTempScreen()`), and `Player.damageMonster`/`detectMonsterContact`/`damageInteractiveTile`, which index `mapsMonsters`/`mapsInteractiveTiles` by position after an `INIT_INDEX` sentinel check that is easy to defeat (any index ≥ 0 from an empty list, or a concurrent removal, corrupts assumptions).
-
-**Fix:** (a) make the maps *complete* — build `mapsObjects`/`mapsMonsters`/`mapsNpc`/`projectiles`/`mapsInteractiveTiles` from a single declared list of map ids so every map is always present (even with an empty list), e.g. a `MapId` enum or a `World`/`GameSession` object; (b) replace `999` with `-1` or `OptionalInt` throughout; (c) null-check at the boundary anyway. The root fix is (a): "possibly missing key" is the defect, not the missing `if`.
-
-<a id="finding-7"></a>
-
-### 7. Saved data stores only the *current* map, and loses the boss flag — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `SaveLoad.java:89-113`; `data/Progress.java` (entire file); `entity/monster/SkeletonLord.java:140`
-
-`save()` serializes `mapsObjects.get(CURRENT_MAP)` only. Objects collected or removed in every other map (chests opened, coins picked up, the iron door removed after the rock puzzle, doors unlocked) silently reappear when the player reloads in a different map than the one they saved in. Complementary losses:
-
-- `Progress.skeletonLordDefeated` is a `public static boolean` that is **never serialized**. After loading a save in which the boss was defeated, the flag resets to `false` → the Skeleton Lord respawns at his spawn point and the `EventHandler.skeletonLord()` cutscene can trigger again.
-- `saved`: player stats, inventory, equipment, interactive tiles (correctly iterated across *all* maps — the object block is the odd one out), and only the current map's objects.
-- `not saved`: current map id, player world position (load resets to the default spawn — see `Player.setDefaultPositions()` called from `load()`), boss defeat, event one-time flags (`EventRect.oneTimeEventDone`), chest contents for unopened chests in other maps.
-
-**Fix:** serialize a `SaveGame` DTO that covers *all* maps (object name/x/y/opened/loot, interactive tile state — you already do this correctly), plus `currentMap`, player `worldX/worldY`, `skeletonLordDefeated`, and event one-time flags. Bump the format with a `schemaVersion` field so future migrations are possible (see [OPEN 41](#finding-41)).
-
 <a id="finding-8"></a>
 
-### 8. Save format uses Java serialization without `serialVersionUID`, non-atomic, unclosed streams — 🔴 OPEN
+### 1. Save format uses Java serialization without `serialVersionUID`, non-atomic, unclosed streams — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `data/DataStorage.java` (no `serialVersionUID`), `SaveLoad.java:35-150`
@@ -154,35 +34,15 @@ Same class of bug, different sites: `GamePanel.java:262` (`for (GameEntity proje
 
 **Fix:** replace with versioned JSON (`jackson-databind` is already a dependency — use it), e.g. `save.json` containing a `schemaVersion`, written to a temp file then atomically moved (`Files.move(..., ATOMIC_MOVE)`), loaded defensively (validate ranges, tolerate missing keys, wrap equipment re-resolution in a fallback to the default sword/shield). Store it in a per-user data dir (`java.util.prefs`/`System.getProperty("user.home")/.blue-boy/` or the OS equivalent), not the working directory. If you must keep binary serialization short-term, add `serialVersionUID` and try-with-resources and atomic write — but JSON is the right target.
 
-<a id="finding-9"></a>
+**Current worktree based on `20277f2`:** saves use versioned JSON in `~/.blue-boy/save.json`, closed streams and atomic same-directory replacement. Load validates and constructs the snapshot before applying it, preserves equipment slot identity when skipping unknown items, uses default equipment for invalid slots, and reports failures to the player and log. A filtered one-time importer attempts to read legacy `save.dat` without deleting it; incompatible Java-serialized versions cannot be recovered automatically. Tests cover round trips, corrupt data, fallback equipment, failure reporting and legacy import.
 
-### 9. Persistent identity is the *localized display string* — 🔴 OPEN
-**Severity:** `P1`
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified.
 
-**Where:** `enums/GameObject.java` (`name = TextManager.getItemName(textKey)`), `SaveLoad` (stores `inventory.get(i).getName()` / object names), `GameEntityFactory.getGameEntity(String)` (linear `equalsIgnoreCase` scan), `BigRock.java:54,58,83`, `Door.java` (uses `GameObject.DOOR.name()` — the only enum-consistent one, and it's "consistent" by accident of `equalsIgnoreCase`)
-
-Entities set `name` to the **display name from the JSON texts** (`"Woodcutter's Axe"`). That string is then: stored in the save file, used as the factory lookup key, and compared for puzzle logic (BigRock ↔ MetalPlate ↔ IronDoor). Consequences:
-
-1. Editing a display string in `items.json` silently breaks loading every existing save (`getObjectFromName` throws `IllegalArgumentException` → whole `load()` aborts → see [OPEN 8](#finding-8)) and silently breaks puzzle detection (string compare no longer matches).
-2. The game is effectively un-localizable: any translated build invalidates saves made in another language.
-3. Save files are not robust even to refactors of the text files.
-
-**Fix:** introduce a stable `id` per item (the `GameObject` enum constant name / `textKey` is ideal) and use *it* for persistence, factory dispatch, and puzzle comparisons. Keep `name` purely as a rendering concern. `getObjectFromName` should return `Optional<GameObject>` (or throw with the offending id) and the load path should tolerate unknown ids by skipping the item with a warning, not by aborting the whole load.
-
-<a id="finding-10"></a>
-
-### 10. Boss defeat flag, and `EventRect.oneTimeEventDone`, are the only world-state outside the save — and they vanish — 🔴 OPEN
-**Severity:** `P1`
-
-**Where:** `data/Progress.java`, `utils/event/EventRect.java`, `EventHandler.java` (`eventRect` map only ever populated for `MAIN_MAP`)
-
-Covered in [OPEN 7](#finding-7) for the boss flag. Additionally: `EventRect` state is per-session only, and the `eventRect` grid is only built for `MAIN_MAP` but `hit()` reads `eventRect.get(MAIN_MAP)` for events on *every* map (works today only because geometry is identical across maps — dungeon events like `hit(25, 27)` index the main-map array). If per-map rects ever diverge, dungeon events silently use main-map rects.
-
-**Fix:** key `eventRect` by map id (`Map<String, EventRect[][]>`), persist one-time flags in the save, and delete `Progress.java` (its single field belongs in the save DTO).
+**Remaining:** the final application phase can still leave live state partially changed if it fails. The finding remains `OPEN` until that failure path is resolved and verified.
 
 <a id="finding-11"></a>
 
-### 11. Level-up discards overflow experience — 🔴 OPEN
+### 2. Level-up discards overflow experience — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `Player.java:387-403` (`checkLevelUp`) and `Player.java:217` (`setDefaultValues`)
@@ -202,15 +62,15 @@ A reward granting 12 exp at 5 exp/level should yield two levels and 2 remainder 
 
 <a id="finding-12"></a>
 
-### 12. The game cannot run from anything but the project root, and cannot be distributed — 🔴 OPEN
+### 3. The game cannot run from anything but the project root, and cannot be distributed — 🔴 OPEN
 **Severity:** `P0`
 
 **Where:** `utils/text/TextManager.java:21-23`, `TextLoader.java` (`new File(folderPath)` + `Files.walk`), `config/Config.java:22` (`"src/main/gameConfig.txt"`), `SaveLoad.java:29` (`"save.dat"`), `Main.java`
 
 Bundled texts are read via **filesystem paths relative to the CWD** (`src/main/resources/texts/...`) instead of the classpath. Consequences:
 
-1. Run the jar from any other directory → `TextLoader` finds nothing → `dialogues`/`items`/`settingsAndUI` are **empty maps** → `TextManager.getUiText(...)` returns `null` → `null.get(...)` on the next line throws NPE → dialogues/UI/item names all break (or the game dies at startup inside enum init — see [OPEN 13](#finding-13)).
-2. `gameConfig.txt` is *written into the source tree* (`src/main/gameConfig.txt` — a build artifact that was committed to git; see [OPEN 54](#finding-54)). Installed read-only, saving options fails silently.
+1. Run the jar from any other directory → `TextLoader` finds nothing → `dialogues`/`items`/`settingsAndUI` are **empty maps** → `TextManager.getUiText(...)` returns `null` → `null.get(...)` on the next line throws NPE → dialogues/UI/item names all break (or the game dies at startup inside enum init — see [OPEN 4](#finding-13)).
+2. `gameConfig.txt` is *written into the source tree* (`src/main/gameConfig.txt` — a build artifact that was committed to git; see [OPEN 45](#finding-54)). Installed read-only, saving options fails silently.
 3. Packaging as a single jar / jpackage / native image is impossible; this is the main blocker for actually shipping Blue Boy.
 
 **Fix:**
@@ -220,29 +80,29 @@ Bundled texts are read via **filesystem paths relative to the CWD** (`src/main/r
 
 <a id="finding-13"></a>
 
-### 13. `GameObject` enum does I/O inside its constructor — 🔴 OPEN
+### 4. `GameObject` enum does I/O inside its constructor — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `enums/GameObject.java:52-56` (`GameObject(String textKey) { name = TextManager.getItemName(textKey); ... }`)
 
-Enum class-init now depends on the filesystem ([OPEN 12](#finding-12)) and on `TextManager`'s static init. Any failure → `ExceptionInInitializerError` — the JVM kills the thread with an error that bypasses the `Try` wrappers and is extremely hard to diagnose from a player's report ("the game doesn't start on Linux"). It also makes the enum untestable in isolation and couples *every* class that references a `GameObject` to the whole text-loading stack.
+Enum class-init now depends on the filesystem ([OPEN 3](#finding-12)) and on `TextManager`'s static init. Any failure → `ExceptionInInitializerError` — the JVM kills the thread with an error that bypasses the `Try` wrappers and is extremely hard to diagnose from a player's report ("the game doesn't start on Linux"). It also makes the enum untestable in isolation and couples *every* class that references a `GameObject` to the whole text-loading stack.
 
 **Fix:** store only `textKey` in the enum; resolve display names via `TextManager.getItemName(key)` at the call site (or via a cached lookup in a `ItemCatalog`). The enum becomes a pure constant holder — as enums should be.
 
 <a id="finding-14"></a>
 
-### 14. `KeyHandler`: cheats and `System.exit` in release input paths — 🔴 OPEN
+### 5. `KeyHandler`: cheats and `System.exit` in release input paths — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `utils/KeyHandler.java` — `VK_G` (god mode), `VK_T` (debug text), `VK_R` (reload map/cheat), `VK_X`, `System.exit(0)` in `titleState`, `gameConfig.txt` machinery
 
-None of this is gated behind a flag. For a game "developed into a big one", debug/cheat entry points should live behind a `devMode` property (`-Dblueboy.dev=true`) or a hidden settings toggle, not shipped unconditionally. Direct `System.exit` bypasses application cleanup unless it is registered as a JVM shutdown hook (music line cleanup, atomic save on exit — see [OPEN 76](#finding-76)).
+None of this is gated behind a flag. For a game "developed into a big one", debug/cheat entry points should live behind a `devMode` property (`-Dblueboy.dev=true`) or a hidden settings toggle, not shipped unconditionally. Direct `System.exit` bypasses application cleanup unless it is registered as a JVM shutdown hook (music line cleanup, atomic save on exit — see [OPEN 67](#finding-76)).
 
 **Fix:** central `DevMode` gate; route quit through `windowClosing`/a `GameController.quit()` that stops audio and (optionally) auto-saves; use Swing **Key Bindings** (`InputMap`/`ActionMap`) instead of a raw `KeyListener` so input works regardless of focus and is remappable — which also sets up future control rebinding (an obvious next feature for a game with WASD hard-coded in `KeyHandler`).
 
 <a id="finding-15"></a>
 
-### 15. Duplicate knockback/damage implementation between `Player` and `GameEntity` — 🔴 OPEN
+### 6. Duplicate knockback/damage implementation between `Player` and `GameEntity` — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `Player.update()` (knockback branch, lines ~445-470) vs `GameEntity.update()` (knockback branch) — same constants (`KNOCK_BACK_TIME = 5` inline vs `KNOCK_BACK_TIME` field), same switch, slightly different collision treatment.
@@ -251,30 +111,30 @@ This already diverged once (`Player` uses literal `5`; base uses the constant; k
 
 <a id="finding-16"></a>
 
-### 16. `door.name = GameObject.DOOR.name()` only works by accident — 🔴 OPEN
+### 7. `door.name = GameObject.DOOR.name()` only works by accident — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `entity/items/Door.java:23`
 
-Every other entity uses the localized `getName()`; `Door` uses the enum constant name (`"DOOR"`). The Key-vs-Door check passes only because `getObjectFromName` compares with `equalsIgnoreCase`. Any tightening of identity handling ([OPEN 9](#finding-9)) breaks Key→Door silently. **Fix:** part of [OPEN 9](#finding-9) — compare stable ids everywhere.
+Every other entity uses the localized `getName()`; `Door` uses the enum constant name (`"DOOR"`). The Key-vs-Door check passes only because `getObjectFromName` compares with `equalsIgnoreCase`. Any tightening of identity handling ([FIXED 8](#finding-9)) breaks Key→Door silently. **Fix:** part of [FIXED 8](#finding-9) — compare stable ids everywhere.
 
 <a id="finding-17"></a>
 
-### 17. Small but real: `getImage()` loads `BOY_UP1` twice — 🔴 OPEN
+### 8. Small but real: `getImage()` loads `BOY_UP1` twice — 🔴 OPEN
 **Severity:** `P3`
 
-**Where:** `Player.java:getImage()` — `up1 = setup(BOY_UP1, ...)` appears twice; harmless, but signals the asset paths are maintained by hand (see [OPEN 50](#finding-50)). Also `MerchantNPC` assigns `up*` the down-frames (deliberate), and `GameEntity.setImage`-style duplication across `AssetSetter`/`Player`/`NPC` constructors is heavy copy-paste.
+**Where:** `Player.java:getImage()` — `up1 = setup(BOY_UP1, ...)` appears twice; harmless, but signals the asset paths are maintained by hand (see [OPEN 41](#finding-50)). Also `MerchantNPC` assigns `up*` the down-frames (deliberate), and `GameEntity.setImage`-style duplication across `AssetSetter`/`Player`/`NPC` constructors is heavy copy-paste.
 
 <a id="finding-18"></a>
 
-### 18. Inventory capacity has two sources of truth — 🔴 OPEN
+### 9. Inventory capacity has two sources of truth — 🔴 OPEN
 **Severity:** `P3`
 
 `WoodShield`/`BlueShield` and friends: `item.setAmount(...)` on fresh instances during load is fine, but `GameEntity.maxInventorySize = 20` duplicates `GamePanel.ALLOWED_ITEMS = 20` (unused, `GamePanel.java:53`). Keep one authoritative inventory limit.
 
 <a id="finding-19"></a>
 
-### 19. Game loop busy-spins at 100% CPU when idle — 🔴 OPEN
+### 10. Game loop busy-spins at 100% CPU when idle — 🔴 OPEN
 **Severity:** `P0`
 
 **Where:** `GamePanel.java:379-401` (`run()`)
@@ -303,7 +163,7 @@ if (delta >= 1) {
 
 <a id="finding-20"></a>
 
-### 20. `TileManager.draw()` tests 2,500 tiles per frame instead of computing the visible window — 🔴 OPEN
+### 11. `TileManager.draw()` tests 2,500 tiles per frame instead of computing the visible window — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `tile/TileManager.java:135-185`
@@ -317,7 +177,7 @@ The viewport covers ~20×12 tiles; 96% of iterations are discarded by the `visib
 
 <a id="finding-21"></a>
 
-### 21. Per-frame allocation churn across the update/draw paths — 🔴 OPEN
+### 12. Per-frame allocation churn across the update/draw paths — 🔴 OPEN
 **Severity:** `P1`
 
 **Where / examples:**
@@ -332,13 +192,13 @@ The viewport covers ~20×12 tiles; 96% of iterations are discarded by the `visib
 - `new Random()` at 9 call sites (`GameEntity.java:350,642,653,664,673`, `Bat/GreenSlime/RedSlime:55/60/66`, `OldManNPC:79`) — new object + seeds from a shared entropy source per call; also means "random" is not seedable for deterministic tests.
 - `Comparator.comparingInt(GameEntity::getWorldY)` allocates a comparator each frame (cache a `static final Comparator`).
 
-**Why it matters:** at 60 fps with a busy scene (10 monsters × pathfinding + collisions + particles + projectiles), the young generation is filled with garbage objects that do nothing; GC pressure shows up as micro-stutters exactly when the action is dense. None of these are hard to fix; doing them as part of the render-loop work ([OPEN 19](#finding-19)) amortises the cost.
+**Why it matters:** at 60 fps with a busy scene (10 monsters × pathfinding + collisions + particles + projectiles), the young generation is filled with garbage objects that do nothing; GC pressure shows up as micro-stutters exactly when the action is dense. None of these are hard to fix; doing them as part of the render-loop work ([OPEN 10](#finding-19)) amortises the cost.
 
-**Fix:** hoist constants, reuse scratch `Rectangle`s (or better, remove the rect mutation entirely — see [OPEN 23](#finding-23)), replace copy+upcast streams with a pre-built `List<GameEntity>` view of interactive tiles (maintain it alongside `mapsInteractiveTiles`), cache fonts and comparators, switch to `ThreadLocalRandom` (or an injected `Random`).
+**Fix:** hoist constants, reuse scratch `Rectangle`s (or better, remove the rect mutation entirely — see [OPEN 14](#finding-23)), replace copy+upcast streams with a pre-built `List<GameEntity>` view of interactive tiles (maintain it alongside `mapsInteractiveTiles`), cache fonts and comparators, switch to `ThreadLocalRandom` (or an injected `Random`).
 
 <a id="finding-22"></a>
 
-### 22. `PathFinder` is re-run *every frame* for every chasing monster, and is O(n²) — 🔴 OPEN
+### 13. `PathFinder` is re-run *every frame* for every chasing monster, and is O(n²) — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `ai/PathFinder.java` (`setNodes`, `findBestNode`, `openList.remove(currentNode)`), callers `GameEntity.searchPath()`
@@ -355,11 +215,11 @@ Three compounding issues:
 - Only recompute the path when the goal cell changed since the last search, or every N ticks (e.g., 30) — classic stagger. Cache the path on the entity (`currentPath`, `pathIndex`).
 - Use a `PriorityQueue<Node>` (or binary heap) and a `Deque<Node>` for the reconstructed path (`pathList.addFirst` on an `ArrayList` is O(n) per add → O(n²) path rebuild; a proper `Deque`/linked list is O(n)).
 - Delete `MAX_PATH_LENGTH` or make it explicit and logged; failure to find a path should be distinguishable from "already at goal".
-- `PathFinder.getPathList()` returns `ArrayList<Node>` and callers use `getFirst()` — a Java 21 `SequencedCollection` call (see [OPEN 28](#finding-28)). Return an unmodifiable `List<Node>` or `Deque<Node>`.
+- `PathFinder.getPathList()` returns `ArrayList<Node>` and callers use `getFirst()` — a Java 21 `SequencedCollection` call (see [OPEN 19](#finding-28)). Return an unmodifiable `List<Node>` or `Deque<Node>`.
 
 <a id="finding-23"></a>
 
-### 23. Collision detection mutates shared `Rectangle`s as scratch space — 🔴 OPEN
+### 14. Collision detection mutates shared `Rectangle`s as scratch space — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `CollisionDetector` (`checkObject`, `checkEntity`, `checkPlayer`, `checkGameEntityCollision`)
@@ -370,7 +230,7 @@ Every check: (1) writes world coords into the *entity's* `solidArea.x/y`, (2) wr
 
 <a id="finding-24"></a>
 
-### 24. Resource loading has no cache: every entity construction re-reads and re-scales PNGs — 🔴 OPEN
+### 15. Resource loading has no cache: every entity construction re-reads and re-scales PNGs — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `GameEntity.setup()` (ImageIO.read + `UtilityTool.scaleImage`), called from every constructor; `AssetSetter.setMonster()` on **every area change** and `resetGame()`; `UI` constructs `Heart`/`ManaCrystal`/`BronzeCoin` entities purely to steal `mainImage`; `Player.canObtainItem()` constructs a **new entity from disk** to read `stackable`; `SaveLoad.load()` constructs every inventory item and map object from disk
@@ -381,7 +241,7 @@ Each `setup()` does `ImageIO.read` (file open + PNG decode) then allocates a sca
 
 <a id="finding-25"></a>
 
-### 25. `drawToScreen()` uses `getGraphics()` instead of Swing's paint path — 🔴 OPEN
+### 16. `drawToScreen()` uses `getGraphics()` instead of Swing's paint path — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `GamePanel.java:207-212`
@@ -392,21 +252,21 @@ Calling `getGraphics()` per frame and then `dispose()` bypasses Swing's repaint 
 
 <a id="finding-26"></a>
 
-### 26. Sorting and drawing contain scattered magic numbers — 🔴 OPEN
+### 17. Sorting and drawing contain scattered magic numbers — 🔴 OPEN
 **Severity:** `P3`
 
 `GamePanel.ORIGINAL_TITLE_SIZE` (typo, "TITLE" not "TILE"), `TILE_SIZE * 5` fudge in `inCamera()`, `KNOCK_BACK_TIME`/`SPRITE_CHANGE_TIME` scattered, `20` duplicated as inventory cap, `3000` day-length, `0.001F` filter ramp… Give them names and one home (`Constants` or the owning class) — a future tuning pass over "game feel" currently means grepping literals.
 
 <a id="finding-27"></a>
 
-### 27. `Lighting` re-renders the darkness filter only when told, but draws text lookups every frame — 🔴 OPEN
+### 18. `Lighting` re-renders the darkness filter only when told, but draws text lookups every frame — 🔴 OPEN
 **Severity:** `P3`
 
 `setLightSource()` correctly only runs on `lightUpdated` — good. But `draw()` does two `TextManager` map lookups + a `deriveFont(50F)` per frame for a debug string almost never shown (end-credits only). Guard the whole block behind the ending-scene condition and hoist the font.
 
 <a id="finding-28"></a>
 
-### 28. Lombok plugin version vs Gradle 8.5, and no Java toolchain pinned — 🔴 OPEN
+### 19. Lombok plugin version vs Gradle 8.5, and no Java toolchain pinned — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `build.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties`
@@ -414,11 +274,11 @@ Calling `getGraphics()` per frame and then `dispose()` bypasses Swing's repaint 
 - `io.freefair.lombok` **5.3.0** (Nov 2020, built for Gradle 6.x) paired with Gradle **8.5** is asking for trouble; you also redundantly declare `compileOnly`/`annotationProcessor` lombok yourself (good), so the plugin adds risk with little gain. **Drop `io.freefair.lombok`** or upgrade to ≥ 8.x.
 - **No `java { toolchain { languageVersion = ... } }`** anywhere. The code uses `List.getFirst()` (`GameEntity.searchPath`, `GameMap`? and `EventHandler.handleInteriorMapEvents` `getFirst()`) — a **Java 21** `SequencedCollection` API. With no toolchain, the build compiles against whatever JDK the CI/dev box happens to have; on JDK 17 it fails, on JDK 21 it silently relies on unspecified defaults (source/target 21 with `-source`/`-target` mismatch warnings). Pin `languageVersion = JavaLanguageVersion.of(21)` and set `options.encoding = "UTF-8"`.
 - `group = "org.example"`, `version = "1.0-SNAPSHOT"` — rename to the real coordinates (`org.savilusgame:blue-boy:<version>`) and start versioning properly; `save.dat`-style artifacts make releases untrackable.
-- `tasks.test { useJUnitPlatform() }` is configured but there are **zero tests** (see [OPEN 64](#finding-64)) — the line is aspirational today.
+- `tasks.test { useJUnitPlatform() }` is configured but there are **zero tests** (see [OPEN 55](#finding-64)) — the line is aspirational today.
 
 <a id="finding-29"></a>
 
-### 29. Outdated/vulnerable dependencies — 🔴 OPEN
+### 20. Outdated/vulnerable dependencies — 🔴 OPEN
 **Severity:** `P1`
 
 | Dependency | Updated version | Resolution |
@@ -449,21 +309,21 @@ Also: **no `logback.xml`** on the classpath — logback's default configuration 
 
 <a id="finding-30"></a>
 
-### 30. No packaging: `java -jar` is impossible — 🔴 OPEN
+### 21. No packaging: `java -jar` is impossible — 🔴 OPEN
 **Severity:** `P2`
 
-No `application`/`java` main-class manifest, no `Main-Class` in any jar task, no distribution (`installDist`, jpackage image, or even a fat jar). Given [OPEN 12](#finding-12), fixing resources is step one; packaging is step two. With Gradle, the `application` plugin + `installDist` + a `jpackage` step (or a simple launcher script) gets you a distributable in an afternoon.
+No `application`/`java` main-class manifest, no `Main-Class` in any jar task, no distribution (`installDist`, jpackage image, or even a fat jar). Given [OPEN 3](#finding-12), fixing resources is step one; packaging is step two. With Gradle, the `application` plugin + `installDist` + a `jpackage` step (or a simple launcher script) gets you a distributable in an afternoon.
 
 <a id="finding-31"></a>
 
-### 31. No static analysis / formatting enforcement — 🔴 OPEN
+### 22. No static analysis / formatting enforcement — 🔴 OPEN
 **Severity:** `P3`
 
 `src/main/resources/code-style-formatting.xml` is an IDE config **inside the resources tree** (it gets copied into the jar). Checkstyle/SpotBugs/Error Prone are not wired into the build, so nothing stops regression of the very issues in this report. Add `checkstyle` (or Spotless) with that config moved to `config/checkstyle/`, run it in CI, and start with "warning only" to avoid a big-bang failure.
 
 <a id="finding-32"></a>
 
-### 32. The game thread dies silently on any exception; the window stays up frozen — 🔴 OPEN
+### 23. The game thread dies silently on any exception; the window stays up frozen — 🔴 OPEN
 **Severity:** `P0`
 
 **Where:** `GamePanel.run()` — no `try/catch` around `update()`/`drawToTempScreen()`
@@ -474,18 +334,18 @@ Every P0/P1 bug above (missing map key → NPE, corrupt save, null tile…) prop
 
 <a id="finding-33"></a>
 
-### 33. Cross-thread visibility of game state (EDT vs game thread) — 🔴 OPEN
+### 24. Cross-thread visibility of game state (EDT vs game thread) — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `utils/KeyHandler.java` (plain `boolean upPressed, …, enterPressed`), `GamePanel.gameState` (plain field, set from EDT, read from game thread), `TileManager.CURRENT_MAP` (`public static String`, mutated from game thread and read from EDT — e.g. `KeyHandler` map-reload, `UI.drawTransition`), `GameMap`/`UI` shared fields
 
 Swing delivers key events on the **EDT**; the game loop reads the same fields from its own **game thread** with no `volatile`/synchronization. On x86 this usually appears to work; it is still a data race — updates can be cached, reordered, or lost, and any "worked on my machine" report in this area will be miserable to diagnose. `gameState` can also be half-observed (e.g., state switched to `OPTIONS_STATE` mid-iteration).
 
-**Fix:** make the hand-off explicit and minimal — mark input flags `volatile` (they're single-writer/single-reader booleans), or better, push **input events** into a queue drained by the game thread; mark `gameState`, `CURRENT_MAP` as `volatile` or guard with the frame lock. Longer term this folds into the input-system work in [OPEN 14](#finding-14).
+**Fix:** make the hand-off explicit and minimal — mark input flags `volatile` (they're single-writer/single-reader booleans), or better, push **input events** into a queue drained by the game thread; mark `gameState`, `CURRENT_MAP` as `volatile` or guard with the frame lock. Longer term this folds into the input-system work in [OPEN 5](#finding-14).
 
 <a id="finding-34"></a>
 
-### 34. `Sound`: clips leak native lines; one shared instance cannot overlap SFX — 🔴 OPEN
+### 25. `Sound`: clips leak native lines; one shared instance cannot overlap SFX — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `Sound.java` (`setFile`, `play`, `loop`, `stop`), `GamePanel.soundEffect`
@@ -494,13 +354,13 @@ Swing delivers key events on the **EDT**; the game loop reads the same fields fr
 - `stop()` (`clip.stop()`) NPEs if nothing was ever played (`clip == null`); `music.stop()` is called in `changeArea()` before any music may have been set in some flows.
 - `checkVolume()` has no `default` in the `switch` — an out-of-range `volumeScale` leaves `floatControl.setValue(0f)` (0 dB = full scale) or, worse, an `IllegalArgumentException` if a corrupt config wrote a crazy value.
 - The `FloatControl` cast assumes every mixer supports `MASTER_GAIN` (most do; some don't — the `Try` in `setFile` wraps it, but the error message is opaque).
-- WAV assets are uncompressed PCM (41 MB for 4 tracks, 9–11 MB each) — fine for 15 s SFX, wrong for looped music (see [OPEN 55](#finding-55)).
+- WAV assets are uncompressed PCM (41 MB for 4 tracks, 9–11 MB each) — fine for 15 s SFX, wrong for looped music (see [OPEN 46](#finding-55)).
 
 **Fix:** cache one open `Clip` **per sound id** (`Map<SoundId, Clip>`), rewind with `setMicrosecondPosition(0)`, and `close()` music clips on switch. Use a small pool (or a dedicated `SoundEffect` player that opens-plays-closes per shot, since short clips decode fast). Null-guard `stop()`. Clamp `volumeScale` 0–5 at the setter. Convert WAV music to OGG/MP3 (`javax.sound` won't read OGG — either ship shorter/compressed WAV, use SPI (e.g., `vorbisspi`), or switch playback to `javax.sound` with MP3 via SPI — simplest: keep WAVs for SFX, transcode music to smaller sample rate/bitrate WAV or accept the SPI dependency).
 
 <a id="finding-35"></a>
 
-### 35. `draw()` mutates game state; render and update are not cleanly separated — 🔴 OPEN
+### 26. `draw()` mutates game state; render and update are not cleanly separated — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `GamePanel.drawToTempScreen` (fine), but also:
@@ -513,14 +373,14 @@ Swing delivers key events on the **EDT**; the game loop reads the same fields fr
 
 <a id="finding-36"></a>
 
-### 36. Knockback/invincibility timers and `invincibleCounter` duplicated with different constants — 🔴 OPEN
+### 27. Knockback/invincibility timers and `invincibleCounter` duplicated with different constants — 🔴 OPEN
 **Severity:** `P2`
 
-`GameEntity.INVINCIBLE_TIME = 40` vs `Player.INVINCIBLE_TIME = 60`; `GameEntity.KNOCK_BACK_TIME = 5` vs inline `5` in `Player`; `SPRITE_CHANGE_TIME` vs `CHANGE_SPRITE_INTERVAL`. Two parallel implementations of the same mechanics (see [OPEN 15](#finding-15)) — same class of drift will hit any future status effect. **Fix:** single implementation, single constants table (or per-entity overridable fields with one code path).
+`GameEntity.INVINCIBLE_TIME = 40` vs `Player.INVINCIBLE_TIME = 60`; `GameEntity.KNOCK_BACK_TIME = 5` vs inline `5` in `Player`; `SPRITE_CHANGE_TIME` vs `CHANGE_SPRITE_INTERVAL`. Two parallel implementations of the same mechanics (see [OPEN 6](#finding-15)) — same class of drift will hit any future status effect. **Fix:** single implementation, single constants table (or per-entity overridable fields with one code path).
 
 <a id="finding-37"></a>
 
-### 37. `getDetected()` uses the *player's* speed for any user entity — 🔴 OPEN
+### 28. `getDetected()` uses the *player's* speed for any user entity — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `GameEntity.getDetected` — `int playerSpeed = getPlayer().speed;`
@@ -529,35 +389,35 @@ Used by `Key.use()` with `gameEntity == player` today, but any future non-player
 
 <a id="finding-38"></a>
 
-### 38. `INIT_INDEX = 999` sentinel — 🔴 OPEN
+### 29. `INIT_INDEX = 999` sentinel — 🔴 OPEN
 **Severity:** `P3`
 
-Magic-number "not found" across 22 call sites. Use `-1` (unambiguous) or `OptionalInt`; fail loudly elsewhere (`if (idx == -1)`). Sentinels invite "forgot to check" bugs — [OPEN 6](#finding-6) is exactly that.
+Magic-number "not found" across 22 call sites. Use `-1` (unambiguous) or `OptionalInt`; fail loudly elsewhere (`if (idx == -1)`). Sentinels invite "forgot to check" bugs — [FIXED 6](#finding-6) is exactly that.
 
 <a id="finding-39"></a>
 
-### 39. `Objects.requireNonNull(getClass().getResourceAsStream(...))` inside `Try`, then `.getOrElseThrow(...)` — 🔴 OPEN
+### 30. `Objects.requireNonNull(getClass().getResourceAsStream(...))` inside `Try`, then `.getOrElseThrow(...)` — 🔴 OPEN
 **Severity:** `P2`
 
 `Sound`/`setup()` convert a *missing resource* (a build/packaging error) into a runtime exception with a decent message — that part is fine — but the same pattern in `YamlConfigLoader` (`RuntimeException("Config file not found...")`) bypasses the `Try` entirely and gives an inconsistent error model. Pick one strategy (unchecked `IllegalStateException` with the resource id, always with a message) and apply it uniformly; swallow-and-log is only acceptable for *optional* assets.
 
 <a id="finding-40"></a>
 
-### 40. `Window setUndecorated(true)` for fullscreen after `setResizable(false)` etc. — 🔴 OPEN
+### 31. `Window setUndecorated(true)` for fullscreen after `setResizable(false)` etc. — 🔴 OPEN
 **Severity:** `P3`
 
 Ordering in `Main.java` is okay-ish, but the fullscreen path is untestable and undecorated-only; consider `GraphicsDevice.setFullScreenWindow` (exclusive mode) or simply maximized-bordered; at minimum document why undecorated is required. Also `Main.window` is a **public static mutable** — pass the frame explicitly or keep a package-private holder.
 
 <a id="finding-41"></a>
 
-### 41. No save versioning; no migration path — 🔴 OPEN
+### 32. No save versioning; no migration path — 🔴 OPEN
 **Severity:** `P1`
 
-First field of the new save DTO must be `schemaVersion`. Even if you only ever ship one version, writing it now costs nothing and it future-proofs save-format fixes such as [OPEN 7](#finding-7) and [OPEN 8](#finding-8).
+First field of the new save DTO must be `schemaVersion`. Even if you only ever ship one version, writing it now costs nothing and it future-proofs save-format fixes such as [FIXED 7](#finding-7) and [OPEN 1](#finding-8).
 
 <a id="finding-42"></a>
 
-### 42. Save writes only on two implicit triggers — 🔴 OPEN
+### 33. Save writes only on two implicit triggers — 🔴 OPEN
 **Severity:** `P1`
 
 The game auto-saves at the healing pool (`EventHandler.healingPool()` → `setMonster()` + `save()`) and nowhere else (no save on quit/game-over retry). The title-screen "Load Game" entry point exists (`KeyHandler.titleState`) — with no save file, `load()` logs an error, then starts `PLAY_STATE` anyway (misleading UX: "Load Game" silently begins a fresh run instead of telling the player "no save found").
@@ -566,28 +426,28 @@ The game auto-saves at the healing pool (`EventHandler.healingPool()` → `setMo
 
 <a id="finding-43"></a>
 
-### 43. Interactive-tile save is index-based — 🔴 OPEN
+### 34. Interactive-tile save is index-based — 🔴 OPEN
 **Severity:** `P2`
 
 `SaveLoad` persists tile state as *parallel lists* aligned to the current `AssetSetter.setInteractiveTiles()` order. Reordering the list in code (trivial when adding a new destructible) corrupts every existing save silently — tiles resurrect or vanish with no error. **Fix:** persist by stable key: `mapId → list of {tileTypeId, col, row, currentLife, destroyed, invincible}` and rebuild by looking cells up, skipping unknown ids with a warning.
 
 <a id="finding-44"></a>
 
-### 44. Objects-on-map save is also index-based, and half-implemented — 🔴 OPEN
+### 35. Objects-on-map save is also index-based, and half-implemented — 🔴 OPEN
 **Severity:** `P2`
 
-`load()` clears the map list and re-adds only non-null entries; `NA`/`null` holes are simply dropped (the `objectsOnMap.add(null)` line is commented out). That's actually consistent today (lists are horizontal-compacted), but it still: (a) only covers the current map ([OPEN 7](#finding-7)), (b) assumes saved indexes match the freshly-`clear()`ed list, (c) loses chest *contents* for chests emptied this session (only `opened` is stored — fine, by design), and (d) doesn't store monster respawn state (acceptable design — respawning is a feature — but document it).
+`load()` clears the map list and re-adds only non-null entries; `NA`/`null` holes are simply dropped (the `objectsOnMap.add(null)` line is commented out). That's actually consistent today (lists are horizontal-compacted), but it still: (a) only covers the current map ([FIXED 7](#finding-7)), (b) assumes saved indexes match the freshly-`clear()`ed list, (c) loses chest *contents* for chests emptied this session (only `opened` is stored — fine, by design), and (d) doesn't store monster respawn state (acceptable design — respawning is a feature — but document it).
 
 <a id="finding-45"></a>
 
-### 45. `save.dat` and `gameConfig.txt` are committed to git — 🔴 OPEN
+### 36. `save.dat` and `gameConfig.txt` are committed to git — 🔴 OPEN
 **Severity:** `P3`
 
-See [OPEN 55](#finding-55).
+See [OPEN 46](#finding-55).
 
 <a id="finding-46"></a>
 
-### 46. `GamePanel` is a god object; `GameEntity` is a god base class — 🔴 OPEN
+### 37. `GamePanel` is a god object; `GameEntity` is a god base class — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `GamePanel.java` (entire), `entity/GameEntity.java` (759 lines, ~60 fields)
@@ -600,45 +460,45 @@ See [OPEN 55](#finding-55).
 1. Introduce a **`World`/`GameSession`** service object owned by `GamePanel` that owns the map-scoped entity lists, `CURRENT_MAP`, area, and boss flags — with methods (`entitiesOn(map)`, `spawnMonster(...)`, `dropLoot(...)`) instead of public mutable maps. `GamePanel` keeps the Swing/loop responsibilities only.
 2. Split `GameEntity` along the axis it already secretly has: an **`Item`** family (stackable, price, description — no physics, no AI) and an **`Actor`** family (health, stats, movement, collision). Interactive tiles implement `Destructible`/`Interactable` interfaces rather than inheriting 60 fields. Keep the single `GameEntity` base *temporarily* and migrate one family at a time; the goal is that `new RedPotion()` doesn't drag in `attackArea`, `exp`, `knockBackPower`.
 3. Constructor-inject **interfaces** (`AudioService`, `TextRepository`, `ItemCatalog`) rather than `GamePanel`. Even one interface (e.g., `EffectPlayer`) enables headless unit tests and breaks the worst coupling.
-4. `TileManager` singleton (`getInstance`) → constructor injection like everything else; delete `public static String CURRENT_MAP` (see [OPEN 47](#finding-47)).
+4. `TileManager` singleton (`getInstance`) → constructor injection like everything else; delete `public static String CURRENT_MAP` (see [OPEN 38](#finding-47)).
 
 Do not attempt a full ECS rewrite — it's unjustified at this scale. The point is: **make the seams**; the game stays the same, the tests and the team start to flow.
 
 <a id="finding-47"></a>
 
-### 47. Global mutable state: `TileManager.CURRENT_MAP` (public static), `Main.window` (public static), `Progress` (public static boolean) — 🔴 OPEN
+### 38. Global mutable state: `TileManager.CURRENT_MAP` (public static), `Main.window` (public static), `Progress` (public static boolean) — 🔴 OPEN
 **Severity:** `P1`
 
 **Where:** `tile/TileManager.java:56`, `Main.java:14`, `data/Progress.java`
 
 `CURRENT_MAP` is read and written from `GamePanel`, `TileManager.draw`, `UI.drawTransition`, `CollisionDetector`, `EventHandler`, `PathFinder`, `GameEntity`, `AssetSetter`, `SaveLoad`, `KeyHandler` — a dozen classes reaching into one static cell. It prevents: multiple worlds, map previews, cutscene maps (PlayerDummy already teleports!), replay/testing, and safe TDD. These are all things this project *will* want.
 
-**Fix:** pass the current map id through the world object ([OPEN 46](#finding-46)); `CURRENT_MAP` becomes `world.currentMapId()`. Delete `public static`. `Main.window` → inject into `GamePanel` (fullscreen needs screen size, not the window). `Progress` → save DTO ([OPEN 10](#finding-10)).
+**Fix:** pass the current map id through the world object ([OPEN 37](#finding-46)); `CURRENT_MAP` becomes `world.currentMapId()`. Delete `public static`. `Main.window` → inject into `GamePanel` (fullscreen needs screen size, not the window). `Progress` → save DTO ([FIXED 9](#finding-10)).
 
 <a id="finding-48"></a>
 
-### 48. Collections of entities are open to every class, null-keyed by map id — 🔴 OPEN
+### 39. Collections of entities are open to every class, null-keyed by map id — 🔴 OPEN
 **Severity:** `P2`
 
-`mapsObjects`/`mapsMonsters`/`mapsNpc`/`projectiles`/`mapsInteractiveTiles` are public fields (via `@Getter`) typed `Map<String, List<GameEntity>>`, populated piecemeal by `AssetSetter` with **inconsistent key coverage** (no INTERIOR_MAP for objects/monsters, no SECOND_FLOR for NPCs…), then null-checked at every call site with subtly different patterns. This is the structural cause of [OPEN 6](#finding-6). **Fix:** one registry class (`WorldRegistry`) built from an explicit `List<String> mapIds`, always fully populated; absence is impossible by construction — not by discipline.
+`mapsObjects`/`mapsMonsters`/`mapsNpc`/`projectiles`/`mapsInteractiveTiles` are public fields (via `@Getter`) typed `Map<String, List<GameEntity>>`, populated piecemeal by `AssetSetter` with **inconsistent key coverage** (no INTERIOR_MAP for objects/monsters, no SECOND_FLOR for NPCs…), then null-checked at every call site with subtly different patterns. This is the structural cause of [FIXED 6](#finding-6). **Fix:** one registry class (`WorldRegistry`) built from an explicit `List<String> mapIds`, always fully populated; absence is impossible by construction — not by discipline.
 
 <a id="finding-49"></a>
 
-### 49. The `UI` class is a 1,067-line renderer+controller for ~12 screens — 🔴 OPEN
+### 40. The `UI` class is a 1,067-line renderer+controller for ~12 screens — 🔴 OPEN
 **Severity:** `P2`
 
 Title, HUD, pause, character sheet, inventory (player & NPC), trade (buy/sell/select), options (settings/fullscreen/controls/end-game), dialogue, sleep transition, game-over, map, transition, debug — all in one class with a `Graphics2D graphics2D` field stashed on each `draw()`. Split into **screen classes** implementing e.g. `interface Screen { void draw(Graphics2D g, GamePanel p); }` with a `UiState`/`ScreenManager`; share `drawSubWindow`, fonts, and `getXForCenteredText` via a `UiKit`. This removes merge-conflict hell and makes each screen independently testable (at least construction-tested) — and it pairs naturally with replacing `GameState` switches scattered across `KeyHandler`/`UI`/`GamePanel` with a state-handler map (keep the enum; dispatch table instead of 10 switches).
 
 <a id="finding-50"></a>
 
-### 50. Assets are placed in Java code — 🔴 OPEN
+### 41. Assets are placed in Java code — 🔴 OPEN
 **Severity:** `P2`
 
-`AssetSetter` hard-codes ~80 entity placements (coordinates, loot chains) as `new X(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 23)` lines; `Lighting`, `EnvironmentManager`, day length… World design (spawn points, trigger volumes, puzzle wiring) buried in code means every level tweak is a recompile and review. For a game that will grow, move **entity placement and events into data** (JSON/YAML alongside the map files — e.g., `maps/worldV3.entities.json`: `{type, x, y, loot, …}`), keep a thin loader. This also fixes [OPEN 48](#finding-48) partially (placement defines the complete map set) and makes the a designer/mods workflow possible.
+`AssetSetter` hard-codes ~80 entity placements (coordinates, loot chains) as `new X(gamePanel).setWorldPosition(TILE_SIZE * 25, TILE_SIZE * 23)` lines; `Lighting`, `EnvironmentManager`, day length… World design (spawn points, trigger volumes, puzzle wiring) buried in code means every level tweak is a recompile and review. For a game that will grow, move **entity placement and events into data** (JSON/YAML alongside the map files — e.g., `maps/worldV3.entities.json`: `{type, x, y, loot, …}`), keep a thin loader. This also fixes [OPEN 39](#finding-48) partially (placement defines the complete map set) and makes the a designer/mods workflow possible.
 
 <a id="finding-51"></a>
 
-### 51. Duplicated A\* demo package ships with the game — 🔴 OPEN
+### 42. Duplicated A\* demo package ships with the game — 🔴 OPEN
 **Severity:** `P2`
 
 **Where:** `src/main/java/aStarPathfindingAlgorithmExample/` (`Main`, `DemoPanel`, `KeyHandler`, `Node`)
@@ -647,7 +507,7 @@ A standalone A\* teaching demo, duplicating `org.savilusGame.ai.Node`, living in
 
 <a id="finding-52"></a>
 
-### 52. Package naming and structure — 🔴 OPEN
+### 43. Package naming and structure — 🔴 OPEN
 **Severity:** `P3`
 
 `org.savilusGame` — packages should be lowercase (`org.savilusgame`); the split `aStarPathfindingAlgorithmExample` (default demo) vs `org.savilusGame.ai` shows the ad-hoc growth. Suggested target layout (packages only, move incrementally):
@@ -664,11 +524,11 @@ org.savilusgame/
 
 <a id="finding-53"></a>
 
-### 53. Concrete design-pattern notes (where patterns help, where they don't) — 🔴 OPEN
+### 44. Concrete design-pattern notes (where patterns help, where they don't) — 🔴 OPEN
 **Severity:** `P3`
 
-- **Flyweight / cache**: sprites & fonts ([OPEN 24](#finding-24), [OPEN 21](#finding-21)).
-- **Factory / registry**: `GameEntityFactory` is the right idea — make it data-driven (`Map<GameObject, Supplier<…>>` built once — it already is), keyed by stable id ([OPEN 9](#finding-9)), with duplicate-mapping validation at startup (it would have caught [OPEN 5](#finding-5)).
+- **Flyweight / cache**: sprites & fonts ([OPEN 15](#finding-24), [OPEN 12](#finding-21)).
+- **Factory / registry**: `GameEntityFactory` is the right idea — make it data-driven (`Map<GameObject, Supplier<…>>` built once — it already is), keyed by stable id ([FIXED 8](#finding-9)), with duplicate-mapping validation at startup (it would have caught [FIXED 5](#finding-5)).
 - **State pattern**: `GameState` + switches in 4 places → dispatch table or State objects when a third switch appears; today a table suffices.
 - **Observer**: `EventHandler`/`checkEvent` is a poor-man's observer; a tiny `EventBus` (or direct calls) is fine at this scale — don't over-engineer.
 - **Strategy**: monster AI (`setAction()` overrides) is already strategy-shaped; keep it.
@@ -676,146 +536,309 @@ org.savilusgame/
 
 <a id="finding-54"></a>
 
-### 54. `save.dat` and `src/main/gameConfig.txt` are committed to the repo — 🔴 OPEN
+### 45. `save.dat` and `src/main/gameConfig.txt` are committed to the repo — 🔴 OPEN
 
 At the reviewed revision, `git ls-files` confirmed both runtime/user artifacts were tracked. Remove them from tracking (`git rm --cached`) and add them to `.gitignore`. Their historical copies remain in Git history; acceptable for a save file, but note it.
 
 <a id="finding-55"></a>
 
-### 55. Large uncompressed audio and binary assets — 🔴 OPEN
+### 46. Large uncompressed audio and binary assets — 🔴 OPEN
 
 41 MB of uncompressed WAV music (9–11 MB × 4) and 250+ PNGs — the repo is ~84 MB. Use Git LFS for binary assets, or (better long-term) move assets out of git to an artifact host and fetch at build time (`gradle` task). At minimum convert music to OGG + a compact decoder SPI, or lower the sample rate/bit depth — 44.1 kHz stereo PCM is wasteful for this soundtrack.
 
 <a id="finding-56"></a>
 
-### 56. Screenshot directory name contains a space — 🔴 OPEN
+### 47. Screenshot directory name contains a space — 🔴 OPEN
 
 `game ss/` is referenced from README. Rename it to `` and update README links.
 
 <a id="finding-57"></a>
 
-### 57. `code-style-formatting.xml` lives in `src/main/resources` — 🔴 OPEN
+### 48. `code-style-formatting.xml` lives in `src/main/resources` — 🔴 OPEN
 
 Move the formatting configuration to `config/`.
 
 <a id="finding-58"></a>
 
-### 58. README is minimal — 🔴 OPEN
+### 49. README is minimal — 🔴 OPEN
 
 At the reviewed revision: no requirements (JDK 21), no build instructions, no controls list, no save location, no architecture overview, no contribution/license section. Recheck current coverage before adding missing documentation; document `./gradlew run` only after an application run task exists.
 
 <a id="finding-59"></a>
 
-### 59. No LICENSE file — 🔴 OPEN
+### 50. No LICENSE file — 🔴 OPEN
 
 Choose an appropriate license before public distribution or commercial release.
 
 <a id="finding-60"></a>
 
-### 60. No `.gitattributes` — 🔴 OPEN
+### 51. No `.gitattributes` — 🔴 OPEN
 
 Binary files (png/wav) have no merge strategy hints (`*.png binary`).
 
 <a id="finding-61"></a>
 
-### 61. Runtime artifacts are not ignored — 🔴 OPEN
+### 52. Runtime artifacts are not ignored — 🔴 OPEN
 
 `.gitignore` doesn't ignore `save.dat` / `gameConfig.txt` / crash dumps / logs.
 
 <a id="finding-62"></a>
 
-### 62. Lombok-generated code needs tooling metadata — 🔴 OPEN
+### 53. Lombok-generated code needs tooling metadata — 🔴 OPEN
 
 `lombok.config` at root with `config.stopBubbling=true` — fine; add `lombok.addLombokGeneratedAnnotation = true` so coverage/linters behave later.
 
 <a id="finding-63"></a>
 
-### 63. Review and CI merge requirements are not established — 🔴 OPEN
+### 54. Review and CI merge requirements are not established — 🔴 OPEN
 
-Single squashed-looking history ("Create README.md") — fine for now; adopt PR-based flow with CI green requirement once CI exists ([OPEN 64](#finding-64)).
+Single squashed-looking history ("Create README.md") — fine for now; adopt PR-based flow with CI green requirement once CI exists ([OPEN 55](#finding-64)).
 
 <a id="finding-64"></a>
 
-### 64. Tests — 🔴 OPEN
+### 55. Tests — 🔴 OPEN
 
-Zero at present (`src/test` doesn't exist; JUnit is declared). Start with pure-logic units that need no Swing: `PathFinder` (grid fixtures, goal unreachable, destructible walls), `CollisionDetector` (after [OPEN 23](#finding-23)-style isolation), `checkLevelUp` exp math, `SaveLoad` round-trip via a temp dir (after [OPEN 8](#finding-8)), `GameEntityFactory` mapping completeness (every `GameObject` resolvable, no duplicate suppliers), `TextLoader` on missing/corrupt files (must fail clearly), `Inventory.canObtainItem` (stackable vs full). To enable this you need the seams from [OPEN 46](#finding-46) — that's the point: tests force the architecture you want anyway.
+Zero at present (`src/test` doesn't exist; JUnit is declared). Start with pure-logic units that need no Swing: `PathFinder` (grid fixtures, goal unreachable, destructible walls), `CollisionDetector` (after [OPEN 14](#finding-23)-style isolation), `checkLevelUp` exp math, `SaveLoad` round-trip via a temp dir (after [OPEN 1](#finding-8)), `GameEntityFactory` mapping completeness (every `GameObject` resolvable, no duplicate suppliers), `TextLoader` on missing/corrupt files (must fail clearly), `Inventory.canObtainItem` (stackable vs full). To enable this you need the seams from [OPEN 37](#finding-46) — that's the point: tests force the architecture you want anyway.
 
 <a id="finding-65"></a>
 
-### 65. CI — 🔴 OPEN
+### 56. CI — 🔴 OPEN
 
 GitHub Actions: `./gradlew build test` on push/PR, matrix JDK 21, plus checkstyle/spotless gate (warning-only initially) and a `save format` compat test.
 
 <a id="finding-66"></a>
 
-### 66. Packaging/distribution — 🔴 OPEN
+### 57. Packaging/distribution — 🔴 OPEN
 
 `application` plugin or `jpackage` (win/lin/mac), icons, desktop entry; version injection into the title bar (`Main.GAME_TITLE` + version).
 
 <a id="finding-67"></a>
 
-### 67. Crash reporting / logging — 🔴 OPEN
+### 58. Crash reporting / logging — 🔴 OPEN
 
-`logback.xml`, rolling file log in `user.home/.blue-boy/logs`, and the crash dialog from [OPEN 32](#finding-32); without this, every player report is unreproducible.
+`logback.xml`, rolling file log in `user.home/.blue-boy/logs`, and the crash dialog from [OPEN 23](#finding-32); without this, every player report is unreproducible.
 
 <a id="finding-68"></a>
 
-### 68. Settings validation — 🔴 OPEN
+### 59. Settings validation — 🔴 OPEN
 
 `Config` line-based format has no schema; corrupt values silently half-apply. Use `java.util.Properties` or JSON; validate range (volume 0–5, fullscreen bool); keep human-editable only if you document it.
 
 <a id="finding-69"></a>
 
-### 69. Input remapping & controller? — 🔴 OPEN
+### 60. Input remapping & controller? — 🔴 OPEN
 
-optional, but the Key Bindings refactor ([OPEN 14](#finding-14)) is the enabling step; don't build remapping on a raw `KeyListener`.
+optional, but the Key Bindings refactor ([OPEN 5](#finding-14)) is the enabling step; don't build remapping on a raw `KeyListener`.
 
 <a id="finding-70"></a>
 
-### 70. Save UX — 🔴 OPEN
+### 61. Save UX — 🔴 OPEN
 
-save slots or at least: explicit save on quit, "Load" disabled without a save, "saved" toast ([OPEN 42](#finding-42)).
+save slots or at least: explicit save on quit, "Load" disabled without a save, "saved" toast ([OPEN 33](#finding-42)).
 
 <a id="finding-71"></a>
 
-### 71. Localization framework — 🔴 OPEN
+### 62. Localization framework — 🔴 OPEN
 
-beyond keyed JSON you have today (the shape is right); formalize key namespacing (`ui.*`, `items.*`), validate at startup in all shipped languages, and keep ids out of display strings ([OPEN 9](#finding-9)).
+beyond keyed JSON you have today (the shape is right); formalize key namespacing (`ui.*`, `items.*`), validate at startup in all shipped languages, and keep ids out of display strings ([FIXED 8](#finding-9)).
 
 <a id="finding-72"></a>
 
-### 72. Accessibility/UX basics — 🔴 OPEN
+### 63. Accessibility/UX basics — 🔴 OPEN
 
 remappable keys, volume 0 = mute semantics (currently 0 → −80 dB — fine), text speed toggle for dialogue, colourblind-safe heart/mana palette (hearts vs crystals are red/cyan — mostly OK).
 
 <a id="finding-73"></a>
 
-### 73. Documentation — 🔴 OPEN
+### 64. Documentation — 🔴 OPEN
 
-Architecture README (the map in [OPEN 52](#finding-52)), build/run docs, asset pipeline note, save-format doc (even one page), CONTRIBUTING.
+Architecture README (the map in [OPEN 43](#finding-52)), build/run docs, asset pipeline note, save-format doc (even one page), CONTRIBUTING.
 
 <a id="finding-74"></a>
 
-### 74. License, issue templates, PR checklist — 🔴 OPEN
+### 65. License, issue templates, PR checklist — 🔴 OPEN
 
 cheap, immediate.
 
 <a id="finding-75"></a>
 
-### 75. Artifact cleanup — 🔴 OPEN
+### 66. Artifact cleanup — 🔴 OPEN
 
-delete/move the A\* demo ([OPEN 51](#finding-51)), prune unused maps/sprites ([OPEN 51](#finding-51)), document the tile-id ↔ image contract (`tile[]` index ≥ 10 — magic 10 at `TileManager.setUp`).
+delete/move the A\* demo ([OPEN 42](#finding-51)), prune unused maps/sprites ([OPEN 42](#finding-51)), document the tile-id ↔ image contract (`tile[]` index ≥ 10 — magic 10 at `TileManager.setUp`).
 
 <a id="finding-76"></a>
 
-### 76. Crash-safe shutdown — 🔴 OPEN
+### 67. Crash-safe shutdown — 🔴 OPEN
 
-window listener: flush config/save, close audio lines, stop the loop thread ([OPEN 32](#finding-32)).
+window listener: flush config/save, close audio lines, stop the loop thread ([OPEN 23](#finding-32)).
 
 <a id="finding-77"></a>
 
-### 77. (Optional, later) threading model doc — 🔴 OPEN
+### 68. (Optional, later) threading model doc — 🔴 OPEN
 
 even if you stay single-threaded, write down EDT vs game-thread ownership rules now; it prevents an entire class of races as more devs join.
 
 ## FIXED
+
+<a id="finding-1"></a>
+
+### 1. Collision check on the RIGHT direction inspects the wrong column — 🟢 FIXED
+**Severity:** `P0`
+
+**Where:** `src/main/java/org/savilusGame/utils/CollisionDetector.java` (`checkTile`)
+
+```java
+case RIGHT -> {
+    entityRightCol = Math.floorDiv(entityRightWorldX + gameEntity.getSpeed(), TILE_SIZE);
+    if (isSolidTile(currentMapTiles, entityRightCol, entityTopRow)
+        || isSolidTile(currentMapTiles, entityRightCol, entityBottomRow)) {
+        gameEntity.setCollisionOn(true);
+    }
+}
+```
+
+Historical observation: at `20277f2`, the RIGHT branch already checks both corners on the leading column, so the reported wrong-column behavior was not reproducible in the current source. The branch now retains that behavior while tile lookups go through `isSolidTile`, which treats out-of-map coordinates as solid and reports invalid tile ids explicitly.
+
+**Resolution in this worktree:** retain the leading-edge check:
+```java
+isSolidTile(currentMapTiles, entityRightCol, entityTopRow)
+    || isSolidTile(currentMapTiles, entityRightCol, entityBottomRow)
+```
+Regression tests cover a blocked top-right corner and both positive and negative out-of-map boundaries.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent attempt to start `./gradlew test --tests org.savilusGame.service.CollisionServiceTest --tests org.savilusGame.entity.ActorBehaviorTest` returned `Permission denied` (exit 126).
+
+<a id="finding-2"></a>
+
+### 2. Attack reach uses `attackArea.height` for horizontal offset — 🟢 FIXED
+**Severity:** `P0`
+
+**Where:** `src/main/java/org/savilusGame/entity/Actor.java` (`attacking()`)
+
+```java
+case RIGHT -> worldX += attackArea.width;
+```
+
+Historical observation: the reviewed source already offsets RIGHT attacks by `attackArea.width`; no production-code correction was needed. A regression test uses a non-square attack area to preserve the contract.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent Gradle attempt returned `Permission denied` (exit 126).
+<a id="finding-3"></a>
+
+### 3. Entity center computed from sprite width/height, swapped — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `src/main/java/org/savilusGame/entity/Actor.java` (`getCenterX`, `getCenterY`)
+
+```java
+int getCenterX() { return worldX + solidArea.x + solidArea.width / 2; }
+int getCenterY() { return worldY + solidArea.y + solidArea.height / 2; }
+```
+
+Historical observation: the current implementation already derives both centers from the solid area, not sprite frames, so the reported defect was not present at `20277f2`. A regression test verifies the offset and dimensions without requiring sprite initialization.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent Gradle attempt returned `Permission denied` (exit 126).
+
+<a id="finding-4"></a>
+
+### 4. Monster contact deals damage + 1 flat, bypassing the damage pipeline — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `src/main/java/org/savilusGame/entity/Player.java` (`detectMonsterContact`)
+
+```java
+if (monsterIndex != INIT_INDEX) {
+    Actor monster = gamePanel.getWorld().currentMonsters().get(monsterIndex);
+    if (!monster.isDying()) {
+        monster.damagePlayer(monster.getAttack());
+    }
+}
+```
+
+Historical observation: the current method did not contain the reported second flat subtraction, but it bypassed `Actor.damagePlayer(int)`. It now delegates contact damage to the colliding monster's shared pipeline, including guard/parry and invincibility handling. Headless regression tests cover single application and parry behavior.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent Gradle attempt returned `Permission denied` (exit 126).
+
+<a id="finding-5"></a>
+
+### 5. `GameEntityFactory` maps **BLUE_HEART → BlueShield** — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `src/main/java/org/savilusGame/entity/GameEntityFactory.java`
+
+```java
+itemMap.put(BLUE_HEART, () -> new BlueHeart(gamePanel));
+```
+
+Historical observation: the factory already maps `BLUE_HEART` to `BlueHeart` at `20277f2`; no production-code correction was needed. A regression test verifies the factory result for the localized Blue Heart name.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent Gradle attempt returned `Permission denied` (exit 126).
+
+<a id="finding-6"></a>
+
+### 6. Save/load indexing assumes `mapsObjects` has every map — it doesn't — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `GameEntity.java:315` (`getDetected`), `AssetSetter.java` (`setObject` creates keys `MAIN_MAP`, `DUNGEON_FIRST_FLOR`, `DUNGEON_SECOND_FLOR` — **no `INTERIOR_MAP`**)
+
+`getDetected()` does `target.get(CURRENT_MAP).size()` with no null check. Using a Key (or any item whose `use()` calls `getDetected`) while inside `interior01.txt` dereferences `null` → `NullPointerException` on the Swing EDT (Key usage is triggered from `selectItem()` ← `KeyHandler` ← `keyPressed`). The exception is swallowed by Swing, `enterPressed` stays in a half-processed state, and the interaction just silently fails.
+
+Same class of bug, different sites: `GamePanel.java:262` (`for (GameEntity projectile : projectiles.get(CURRENT_MAP))` — the one map-entity list *not* null-checked in `drawToTempScreen()`), and `Player.damageMonster`/`detectMonsterContact`/`damageInteractiveTile`, which index `mapsMonsters`/`mapsInteractiveTiles` by position after an `INIT_INDEX` sentinel check that is easy to defeat (any index ≥ 0 from an empty list, or a concurrent removal, corrupts assumptions).
+
+**Fix:** (a) make the maps *complete* — build `mapsObjects`/`mapsMonsters`/`mapsNpc`/`projectiles`/`mapsInteractiveTiles` from a single declared list of map ids so every map is always present (even with an empty list), e.g. a `MapId` enum or a `World`/`GameSession` object; (b) replace `999` with `-1` or `OptionalInt` throughout; (c) null-check at the boundary anyway. The root fix is (a): "possibly missing key" is the defect, not the missing `if`.
+
+**Resolution in the worktree based on `20277f2`:** `World` initializes map-scoped collections for all loaded maps and maintains them through reseeding and map switches. The collision sentinel is `-1`, indexed player/projectile interactions check their inputs and log stale indices, and `ObjectDetector` still tolerates an absent list. Regression tests were added in `WorldTest`, `CollisionServiceTest`, `ObjectDetectorTest`, and `ActorBehaviorTest`.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified.
+
+<a id="finding-7"></a>
+
+### 7. Saved data stores only the *current* map, and loses the boss flag — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `SaveLoad.java:89-113`; `data/Progress.java` (entire file); `entity/monster/SkeletonLord.java:140`
+
+`save()` serializes `mapsObjects.get(CURRENT_MAP)` only. Objects collected or removed in every other map (chests opened, coins picked up, the iron door removed after the rock puzzle, doors unlocked) silently reappear when the player reloads in a different map than the one they saved in. Complementary losses:
+
+- `Progress.skeletonLordDefeated` is a `public static boolean` that is **never serialized**. After loading a save in which the boss was defeated, the flag resets to `false` → the Skeleton Lord respawns at his spawn point and the `EventHandler.skeletonLord()` cutscene can trigger again.
+- `saved`: player stats, inventory, equipment, interactive tiles (correctly iterated across *all* maps — the object block is the odd one out), and only the current map's objects.
+- `not saved`: current map id, player world position (load resets to the default spawn — see `Player.setDefaultPositions()` called from `load()`), boss defeat, event one-time flags (`EventRect.oneTimeEventDone`), chest contents for unopened chests in other maps.
+
+**Fix:** serialize a `SaveGame` DTO that covers *all* maps (object name/x/y/opened/loot, interactive tile state — you already do this correctly), plus `currentMap`, player `worldX/worldY`, `skeletonLordDefeated`, and event one-time flags. Bump the format with a `schemaVersion` field so future migrations are possible (see [OPEN 32](#finding-41)).
+
+**Resolution in the worktree based on `20277f2`:** the baseline already iterated object lists across maps, although other world state was still missing. Versioned saves include every map's objects, drops, interactive tiles and event flags, plus the active map, player position, inventory, equipment and boss defeat flag. Seeded and temporary drops are both saved so collected drops do not respawn; monster reseeding respects boss defeat. Temporary boss-battle doors are excluded because encounters restart on load. `SaveLoadTest` contains cross-map and temporary-door regression tests.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified.
+
+<a id="finding-9"></a>
+
+### 8. Persistent identity is the *localized display string* — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `enums/GameObject.java` (`name = TextManager.getItemName(textKey)`), `SaveLoad` (stores `inventory.get(i).getName()` / object names), `GameEntityFactory.getGameEntity(String)` (linear `equalsIgnoreCase` scan), `BigRock.java:54,58,83`, `Door.java` (uses `GameObject.DOOR.name()` — the only enum-consistent one, and it's "consistent" by accident of `equalsIgnoreCase`)
+
+Entities set `name` to the **display name from the JSON texts** (`"Woodcutter's Axe"`). That string is then: stored in the save file, used as the factory lookup key, and compared for puzzle logic (BigRock ↔ MetalPlate ↔ IronDoor). Consequences:
+
+1. Editing a display string in `items.json` silently breaks loading every existing save (`getObjectFromName` throws `IllegalArgumentException` → whole `load()` aborts → see [OPEN 1](#finding-8)) and silently breaks puzzle detection (string compare no longer matches).
+2. The game is effectively un-localizable: any translated build invalidates saves made in another language.
+3. Save files are not robust even to refactors of the text files.
+
+**Fix:** introduce a stable `id` per item (the `GameObject` enum constant name / `textKey` is ideal) and use *it* for persistence, factory dispatch, and puzzle comparisons. Keep `name` purely as a rendering concern. `getObjectFromName` should return `Optional<GameObject>` (or throw with the offending id) and the load path should tolerate unknown ids by skipping the item with a warning, not by aborting the whole load.
+
+**Resolution in the worktree based on `20277f2`:** item and object saves use stable enum identities, the factory prefers ids and retains legacy-name lookup for migration, door detection and the rock/plate/door puzzle use object identities, and item pickup uses the item id. Unknown entries are logged; regression tests cover localization-independent lookup.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified.
+
+<a id="finding-10"></a>
+
+### 9. Boss defeat flag, and `EventRect.oneTimeEventDone`, are the only world-state outside the save — and they vanish — 🟢 FIXED
+**Severity:** `P1`
+
+**Where:** `data/Progress.java`, `utils/event/EventRect.java`, `EventHandler.java` (`eventRect` map only ever populated for `MAIN_MAP`)
+
+Covered in [FIXED 7](#finding-7) for the boss flag. Additionally: `EventRect` state is per-session only, and the `eventRect` grid is only built for `MAIN_MAP` but `hit()` reads `eventRect.get(MAIN_MAP)` for events on *every* map (works today only because geometry is identical across maps — dungeon events like `hit(25, 27)` index the main-map array). If per-map rects ever diverge, dungeon events silently use main-map rects.
+
+**Fix:** key `eventRect` by map id (`Map<String, EventRect[][]>`), persist one-time flags in the save, and delete `Progress.java` (its single field belongs in the save DTO).
+
+**Resolution in the worktree based on `20277f2`:** event grids are allocated per loaded map, hit checks use the current map, and completed event positions and the boss flag are persisted and restored. Boss reseeding honors the restored flag; a new game clears it and the event flags.
+
+**Verification:** IDE `Run Tests` on all project tests (no shell command): 45 passed, none failed or skipped; see `build/test-results/test/` (2026-11-17). The user reports manually exercising the changed functions; individual scenarios were not specified. The earlier agent Gradle attempt returned `Permission denied` (exit 126).

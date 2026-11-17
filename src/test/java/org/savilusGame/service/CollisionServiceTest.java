@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Rectangle;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -93,27 +95,89 @@ class CollisionServiceTest {
   @DisplayName("checkTile flags collision when moving into a solid tile")
   void checkTileFlagsSolidTile() {
     // Find any solid tile in the currently loaded map and approach it from above.
-    var gameMaps = panel.getTileManager().getGameMaps();
     var tiles = panel.getTileManager().getTile();
-    for (var mapEntry : gameMaps.entrySet()) {
-      int[][] map = mapEntry.getValue();
-      for (int row = map[0].length - 1; row >= 1; row--) {
-        for (int col = 0; col < map.length; col++) {
-          int tileNum = map[col][row];
-          if (tileNum >= 0 && tileNum < tiles.length && tiles[tileNum] != null && tiles[tileNum].collision()) {
-            // Place the entity fully inside the row above the solid tile, moving down into it.
-            TestEntity entity = new TestEntity(panel, col * 48, (row - 1) * 48, Direction.DOWN, 48);
-            entity.setWorldPosition(col * 48, (row - 1) * 48);
-            collision.checkTile(entity);
-            assertTrue(entity.isCollisionOn(),
-                "Expected collision when moving into solid tile at col=" + col + ", row=" + row);
-            return;
-          }
+    int[][] map = panel.getTileManager().getGameMaps().get(panel.getWorld().getCurrentMap());
+    for (int row = map[0].length - 1; row >= 1; row--) {
+      for (int col = 0; col < map.length; col++) {
+        int tileNum = map[col][row];
+        if (tileNum >= 0 && tileNum < tiles.length && tiles[tileNum] != null && tiles[tileNum].collision()) {
+          TestEntity entity = new TestEntity(panel, col * 48, (row - 1) * 48, Direction.DOWN, 48);
+          entity.setWorldPosition(col * 48, (row - 1) * 48);
+          collision.checkTile(entity);
+          assertTrue(entity.isCollisionOn(),
+              "Expected collision when moving into solid tile at col=" + col + ", row=" + row);
+          return;
         }
       }
     }
-    // No solid tile found in any loaded map: the test environment changed, fail loudly.
-    throw new IllegalStateException("No solid tile found in any loaded map; cannot verify tile collision");
+    throw new IllegalStateException("No solid tile found in current map; cannot verify tile collision");
+  }
+
+  @Test
+  @DisplayName("checkTile checks the leading top-right corner when moving right")
+  void checkTileChecksLeadingTopRightCorner() {
+    int[][] map = panel.getTileManager().getGameMaps().get(panel.getWorld().getCurrentMap());
+    var tiles = panel.getTileManager().getTile();
+    int solidTile = IntStream.range(0, tiles.length)
+        .filter(index -> tiles[index] != null && tiles[index].collision())
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("No solid tile available for collision test"));
+    int emptyTile = IntStream.range(0, tiles.length)
+        .filter(index -> tiles[index] != null && !tiles[index].collision())
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("No non-solid tile available for collision test"));
+
+    int leadingCol = 10;
+    int topRow = 10;
+    int previousLeadingTop = map[leadingCol][topRow];
+    int previousLeadingBottom = map[leadingCol][topRow + 1];
+    int previousTrailingTop = map[leadingCol - 1][topRow];
+    map[leadingCol][topRow] = solidTile;
+    map[leadingCol][topRow + 1] = emptyTile;
+    map[leadingCol - 1][topRow] = emptyTile;
+
+    try {
+      TestEntity entity = new TestEntity(
+          panel,
+          leadingCol * 48 - 14,
+          topRow * 48 + 30,
+          Direction.RIGHT,
+          4
+      );
+      entity.setSolidArea(new Rectangle(0, 0, 10, 30));
+
+      collision.checkTile(entity);
+
+      assertTrue(entity.isCollisionOn(),
+          "A solid tile at the leading top-right corner must block rightward movement");
+    } finally {
+      map[leadingCol][topRow] = previousLeadingTop;
+      map[leadingCol][topRow + 1] = previousLeadingBottom;
+      map[leadingCol - 1][topRow] = previousTrailingTop;
+    }
+  }
+
+  @Test
+  @DisplayName("checkTile blocks movement beyond the map boundary")
+  void checkTileBlocksMapBoundary() {
+    int mapWidth = panel.getTileManager().getGameMaps().get(panel.getWorld().getCurrentMap()).length;
+    TestEntity entity = new TestEntity(panel, mapWidth * 48 - 13, 10 * 48, Direction.RIGHT, 4);
+    entity.setSolidArea(new Rectangle(0, 0, 10, 30));
+
+    collision.checkTile(entity);
+
+    assertTrue(entity.isCollisionOn(), "Out-of-bounds map cells must be treated as solid");
+  }
+
+  @Test
+  @DisplayName("checkTile blocks movement just beyond the left map boundary")
+  void checkTileBlocksNegativeBoundary() {
+    TestEntity entity = new TestEntity(panel, 0, 10 * 48, Direction.LEFT, 1);
+    entity.setSolidArea(new Rectangle(0, 0, 10, 30));
+
+    collision.checkTile(entity);
+
+    assertTrue(entity.isCollisionOn(), "Negative world coordinates must not truncate to column zero");
   }
 
   @Test

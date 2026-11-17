@@ -42,6 +42,8 @@ public class World {
   public World(TileManager tileManager, String initialMap) {
     this.tileManager = Objects.requireNonNull(tileManager);
     this.currentMap = Objects.requireNonNull(initialMap);
+    tileManager.getGameMaps().keySet().forEach(this::ensureMap);
+    ensureMap(initialMap);
   }
 
   // ------------------------------------------------------------------
@@ -64,6 +66,16 @@ public class World {
    */
   public void switchMap(String mapName) {
     this.currentMap = Objects.requireNonNull(mapName);
+    ensureMap(mapName);
+  }
+
+  private void ensureMap(String mapName) {
+    mapsObjects.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsItems.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsNpc.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsMonsters.computeIfAbsent(mapName, key -> new ArrayList<>());
+    mapsInteractiveTiles.computeIfAbsent(mapName, key -> new ArrayList<>());
+    projectiles.computeIfAbsent(mapName, key -> new ArrayList<>());
   }
 
   // ------------------------------------------------------------------
@@ -118,7 +130,7 @@ public class World {
   }
 
   // ------------------------------------------------------------------
-  // Current-map accessors (null when the map has no seeded list)
+  // Current-map accessors
   // ------------------------------------------------------------------
   public List<InteractiveObject> currentObjects() {
     return mapsObjects.get(currentMap);
@@ -175,37 +187,42 @@ public class World {
   // Seeding / mutation helpers
   // ------------------------------------------------------------------
   public void setObjects(Map<String, List<InteractiveObject>> maps) {
-    mapsObjects.clear();
-    mapsObjects.putAll(maps);
+    replaceMaps(mapsObjects, maps);
   }
 
   public void setItems(Map<String, List<ItemDrop>> maps) {
-    mapsItems.clear();
-    mapsItems.putAll(maps);
+    replaceMaps(mapsItems, maps);
   }
 
   public void setNpcs(Map<String, List<Actor>> maps) {
-    mapsNpc.clear();
-    mapsNpc.putAll(maps);
+    replaceMaps(mapsNpc, maps);
   }
 
   public void setMonsters(Map<String, List<Actor>> maps) {
-    mapsMonsters.clear();
-    mapsMonsters.putAll(maps);
+    replaceMaps(mapsMonsters, maps);
   }
 
   public void setInteractiveTiles(Map<String, List<InteractiveTile>> maps) {
-    mapsInteractiveTiles.clear();
-    mapsInteractiveTiles.putAll(maps);
+    replaceMaps(mapsInteractiveTiles, maps);
   }
 
   public void setProjectiles(Map<String, List<Actor>> maps) {
-    projectiles.clear();
-    projectiles.putAll(maps);
+    replaceMaps(projectiles, maps);
+  }
+
+  private <T> void replaceMaps(Map<String, List<T>> target, Map<String, List<T>> maps) {
+    maps.keySet().forEach(this::ensureMap);
+    for (String mapName : List.copyOf(target.keySet())) {
+      List<T> entries = maps.containsKey(mapName)
+          ? Objects.requireNonNull(maps.get(mapName), "Null entity list for map: " + mapName)
+          : List.of();
+      target.put(mapName, new ArrayList<>(entries));
+    }
   }
 
   public void spawnMonster(String mapName, Actor monster) {
-    mapsMonsters.computeIfAbsent(mapName, key -> new ArrayList<>()).add(monster);
+    ensureMap(mapName);
+    mapsMonsters.get(mapName).add(monster);
   }
 
   /** Remove the actor from every actor list of every map (monsters, NPCs, projectiles). */
@@ -245,7 +262,8 @@ public class World {
    * Authored drops survive game resets and take part in save/load.
    */
   public void seedItemDrop(String mapName, ItemDrop drop) {
-    mapsItems.computeIfAbsent(mapName, key -> new ArrayList<>()).add(drop);
+    ensureMap(mapName);
+    mapsItems.get(mapName).add(drop);
   }
 
   /** Remove only the runtime-spawned item drops from every map (used when rebuilding from a save). */

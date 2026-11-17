@@ -953,6 +953,7 @@ public class UI {
 
       y += TILE_SIZE;
     }
+    drawMessage();
   }
 
   public void drawDialogueScreen() {

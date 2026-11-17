@@ -16,7 +16,8 @@ public class Door extends InteractiveObject {
 
   public Door(GamePanel gamePanel) {
     super(gamePanel);
-    name = GameObject.DOOR.name();
+    gameObject = GameObject.DOOR;
+    name = GameObject.DOOR.getName();
     mainImage = SpriteLoader.load(DOOR, TILE_SIZE, TILE_SIZE);
     collision = true;
 

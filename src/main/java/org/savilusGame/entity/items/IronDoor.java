@@ -16,6 +16,7 @@ public class IronDoor extends InteractiveObject {
 
   public IronDoor(GamePanel gamePanel) {
     super(gamePanel);
+    gameObject = GameObject.IRON_DOOR;
     name = GameObject.IRON_DOOR.getName();
     mainImage = SpriteLoader.load(IRON_DOOR, TILE_SIZE, TILE_SIZE);
     collision = true;

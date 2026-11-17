@@ -11,6 +11,7 @@ public class MetalPlate extends InteractiveTile {
 
   public MetalPlate(GamePanel gamePanel, int col, int row) {
     super(gamePanel);
+    gameObject = GameObject.METAL_PLATE;
 
     this.worldX = TILE_SIZE * col;
     this.worldY = TILE_SIZE * row;

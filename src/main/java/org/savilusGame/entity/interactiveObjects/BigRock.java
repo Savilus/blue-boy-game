@@ -6,15 +6,11 @@ import static org.savilusGame.config.GameEntityNameFactory.DOOR_OPEN;
 import static org.savilusGame.config.GameEntityNameFactory.UNLOCK;
 
 import java.awt.*;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.Actor;
-import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.utils.SpriteLoader;
 import org.savilusGame.entity.interactiveTile.InteractiveTile;
 import org.savilusGame.enums.Direction;
@@ -57,7 +53,7 @@ public class BigRock extends Actor {
 
     List<InteractiveTile> plateList = currentMap.stream()
         .filter(Objects::nonNull)
-        .filter(tile -> StringUtils.equals(GameObject.METAL_PLATE.getName(), tile.getName()))
+        .filter(tile -> tile.getGameObject() == GameObject.METAL_PLATE)
         .toList();
 
     List<BigRock> rockList = gamePanel.getWorld().currentNpc().stream()
@@ -87,7 +83,7 @@ public class BigRock extends Actor {
       for (int doorQuantity = 0; doorQuantity < objects.size(); doorQuantity++) {
         var object = objects.get(doorQuantity);
         if (Objects.nonNull(object) &&
-            GameObject.IRON_DOOR.getName().equals(object.getName())) {
+            object.getGameObject() == GameObject.IRON_DOOR) {
 
           objects.remove(doorQuantity);
           gamePanel.playSE(DOOR_OPEN);
@@ -142,4 +138,3 @@ public class BigRock extends Actor {
   }
 
 }
-

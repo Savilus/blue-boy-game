@@ -159,9 +159,11 @@ public class AssetSetter {
             new Bat(gamePanel).setWorldPosition(TILE_SIZE * 15, TILE_SIZE * 26),
             new Bat(gamePanel).setWorldPosition(TILE_SIZE * 34, TILE_SIZE * 40)
         )),
-        DUNGEON_SECOND_FLOR, new ArrayList<>(List.of(
-            new SkeletonLord(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 16)
-        ))
+        DUNGEON_SECOND_FLOR, gamePanel.getWorld().isSkeletonLordDefeated()
+            ? new ArrayList<>()
+            : new ArrayList<>(List.of(
+                new SkeletonLord(gamePanel).setWorldPosition(TILE_SIZE * 23, TILE_SIZE * 16)
+            ))
     ));
   }
 

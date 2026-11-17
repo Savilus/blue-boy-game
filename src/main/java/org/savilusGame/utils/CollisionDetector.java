@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class CollisionDetector {
-  public final static int INIT_INDEX = 999;
+  public final static int INIT_INDEX = org.savilusGame.service.CollisionService.INIT_INDEX;
 
   private final GamePanel gamePanel;
 
@@ -27,53 +27,66 @@ public class CollisionDetector {
     int entityTopWorldY = getYSolidArea(gameEntity);
     int entityBottomWorldY = getYSolidArea(gameEntity) + gameEntity.getSolidArea().height;
 
-    int entityLeftCol = entityLeftWorldX / TILE_SIZE;
-    int entityRightCol = entityRightWorldX / TILE_SIZE;
-    int entityTopRow = entityTopWorldY / TILE_SIZE;
-    int entityBottomRow = entityBottomWorldY / TILE_SIZE;
-
-    int tileNum1, tileNum2;
+    int entityLeftCol = Math.floorDiv(entityLeftWorldX, TILE_SIZE);
+    int entityRightCol = Math.floorDiv(entityRightWorldX, TILE_SIZE);
+    int entityTopRow = Math.floorDiv(entityTopWorldY, TILE_SIZE);
+    int entityBottomRow = Math.floorDiv(entityBottomWorldY, TILE_SIZE);
 
     // Use a temporal direction when it's being knock backed
     Direction direction = gameEntity.getDirection();
     if (gameEntity.isKnockBack()) {
       direction = gameEntity.getKnockBackDirection();
     }
-    var currentMapTiles = gamePanel.getTileManager().getGameMaps().get(gamePanel.getWorld().getCurrentMap());
+    String currentMap = gamePanel.getWorld().getCurrentMap();
+    int[][] currentMapTiles = Objects.requireNonNull(
+        gamePanel.getTileManager().getGameMaps().get(currentMap),
+        "No tile map loaded for current map: " + currentMap
+    );
     switch (direction) {
       case UP -> {
-        entityTopRow = (entityTopWorldY - gameEntity.getSpeed()) / TILE_SIZE;
-        tileNum1 = currentMapTiles[entityLeftCol][entityTopRow];
-        tileNum2 = currentMapTiles[entityRightCol][entityTopRow];
-        if (gamePanel.getTileManager().getTile()[tileNum1].collision() || gamePanel.getTileManager().getTile()[tileNum2].collision()) {
+        entityTopRow = Math.floorDiv(entityTopWorldY - gameEntity.getSpeed(), TILE_SIZE);
+        if (isSolidTile(currentMapTiles, entityLeftCol, entityTopRow)
+            || isSolidTile(currentMapTiles, entityRightCol, entityTopRow)) {
           gameEntity.setCollisionOn(true);
         }
       }
       case DOWN -> {
-        entityBottomRow = (entityBottomWorldY + gameEntity.getSpeed()) / TILE_SIZE;
-        tileNum1 = currentMapTiles[entityLeftCol][entityBottomRow];
-        tileNum2 = currentMapTiles[entityRightCol][entityBottomRow];
-        if (gamePanel.getTileManager().getTile()[tileNum1].collision() || gamePanel.getTileManager().getTile()[tileNum2].collision()) {
+        entityBottomRow = Math.floorDiv(entityBottomWorldY + gameEntity.getSpeed(), TILE_SIZE);
+        if (isSolidTile(currentMapTiles, entityLeftCol, entityBottomRow)
+            || isSolidTile(currentMapTiles, entityRightCol, entityBottomRow)) {
           gameEntity.setCollisionOn(true);
         }
       }
       case LEFT -> {
-        entityLeftCol = (entityLeftWorldX - gameEntity.getSpeed()) / TILE_SIZE;
-        tileNum1 = currentMapTiles[entityLeftCol][entityTopRow];
-        tileNum2 = currentMapTiles[entityLeftCol][entityBottomRow];
-        if (gamePanel.getTileManager().getTile()[tileNum1].collision() || gamePanel.getTileManager().getTile()[tileNum2].collision()) {
+        entityLeftCol = Math.floorDiv(entityLeftWorldX - gameEntity.getSpeed(), TILE_SIZE);
+        if (isSolidTile(currentMapTiles, entityLeftCol, entityTopRow)
+            || isSolidTile(currentMapTiles, entityLeftCol, entityBottomRow)) {
           gameEntity.setCollisionOn(true);
         }
       }
       case RIGHT -> {
-        entityRightCol = (entityRightWorldX + gameEntity.getSpeed()) / TILE_SIZE;
-        tileNum1 = currentMapTiles[entityRightCol][entityTopRow];
-        tileNum2 = currentMapTiles[entityRightCol][entityBottomRow];
-        if (gamePanel.getTileManager().getTile()[tileNum1].collision() || gamePanel.getTileManager().getTile()[tileNum2].collision()) {
+        entityRightCol = Math.floorDiv(entityRightWorldX + gameEntity.getSpeed(), TILE_SIZE);
+        if (isSolidTile(currentMapTiles, entityRightCol, entityTopRow)
+            || isSolidTile(currentMapTiles, entityRightCol, entityBottomRow)) {
           gameEntity.setCollisionOn(true);
         }
       }
     }
+  }
+
+  private boolean isSolidTile(int[][] map, int col, int row) {
+    if (col < 0 || col >= map.length || row < 0 || row >= map[col].length) {
+      return true;
+    }
+
+    int tileNumber = map[col][row];
+    var tiles = gamePanel.getTileManager().getTile();
+    if (tileNumber < 0 || tileNumber >= tiles.length || tiles[tileNumber] == null) {
+      throw new IllegalStateException(
+          "Invalid tile number " + tileNumber + " at col=" + col + ", row=" + row
+      );
+    }
+    return tiles[tileNumber].collision();
   }
 
   public int checkObject(CollisionBody gameEntity, boolean player) {

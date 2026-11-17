@@ -11,6 +11,7 @@ import java.util.Map;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.item.Item;
 import org.savilusGame.enums.Direction;
+import org.savilusGame.enums.GameObject;
 import org.savilusGame.service.DialogueSpeaker;
 import org.savilusGame.service.DialogueStarter;
 import org.savilusGame.service.Interactable;
@@ -40,6 +41,8 @@ public abstract class InteractiveObject implements CollisionBody, DialogueSpeake
   final GamePanel gamePanel;
 
   String name;
+  @Setter(AccessLevel.NONE)
+  GameObject gameObject;
   int worldX, worldY;
   Direction direction = ANY;
   Rectangle solidArea = new Rectangle(0, 0, 45, 45);

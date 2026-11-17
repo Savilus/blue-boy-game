@@ -3,7 +3,7 @@
 Standing engineering rules for this repository. They apply to every change,
 large or small, regardless of who or what makes it. Where a rule has known
 legacy exceptions in the tree, the exception is documented in
-``; it is not grandfathered into new code.
+`docs_agents/CODE_REVIEW.md`; it is not grandfathered into new code.
 
 ---
 
@@ -49,6 +49,10 @@ legacy exceptions in the tree, the exception is documented in
   (currently Java 25, Lombok via `compileOnly`/`annotationProcessor`).
   Build prerequisites and setup steps are documented in `README.md` and
   updated whenever they change.
+* Write and maintain code for the configured Java 25 baseline. Prefer stable
+  Java 25 language and standard-library features when they improve clarity,
+  safety or maintainability; do not use preview features without an explicit
+  team decision or introduce modern syntax merely for its own sake.
 
 ## 4. Testing
 
@@ -83,11 +87,11 @@ legacy exceptions in the tree, the exception is documented in
 
 ## 6. Documentation & Status Tracking
 
-* `` is the living defect ledger: findings are referenced
+* `docs_agents/CODE_REVIEW.md` is the living defect ledger: findings are referenced
   by status and current number (for example `OPEN 3` or `FIXED 3`), and each
   is either fixed or open.
 * Design decisions that affect more than one file get recorded in the closest
-  `` file (or the class's Javadoc when local). Chat history is not
+  relevant documentation file (or the class's Javadoc when local). Chat history is not
   documentation.
 * Standing rules (this file) change rarely and only by team agreement;
   per-task instructions belong in issues/PRs, never here.
@@ -95,7 +99,7 @@ legacy exceptions in the tree, the exception is documented in
 ## 7. Review Finding Format
 
 * Apart from the short "How to read this report" introduction,
-  `` contains only finding descriptions under `## OPEN`
+  `docs_agents/CODE_REVIEW.md` contains only finding descriptions under `## OPEN`
   and `## FIXED`. Do not add executive summaries, roadmaps, progress reports,
   general commentary or appendices. Resolution and verification evidence
   belong inside the relevant finding.

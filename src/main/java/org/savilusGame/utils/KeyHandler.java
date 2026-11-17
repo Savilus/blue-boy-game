@@ -1,6 +1,8 @@
 package org.savilusGame.utils;
 
 import static org.savilusGame.config.GameEntityNameFactory.CURSOR;
+import static org.savilusGame.config.GameEntityNameFactory.DUNGEON_SONG;
+import static org.savilusGame.config.GameEntityNameFactory.MERCHANT_SONG;
 import static org.savilusGame.config.GameEntityNameFactory.OUTSIDE_MUSIC;
 import static org.savilusGame.enums.GameState.CHARACTER_STATE;
 import static org.savilusGame.enums.GameState.MAP_STATE;
@@ -59,9 +61,14 @@ public class KeyHandler implements KeyListener {
           gamePanel.playBGM(OUTSIDE_MUSIC);
         }
         if (gamePanel.getUi().getCommandNum() == 1) {
-          gamePanel.getSaveLoad().load();
-          gamePanel.setGameState(PLAY_STATE);
-          gamePanel.playBGM(OUTSIDE_MUSIC);
+          if (gamePanel.getSaveLoad().load()) {
+            gamePanel.setGameState(PLAY_STATE);
+            gamePanel.playBGM(switch (gamePanel.getCurrentArea()) {
+              case OUTSIDE -> OUTSIDE_MUSIC;
+              case INDOOR -> MERCHANT_SONG;
+              case DUNGEON -> DUNGEON_SONG;
+            });
+          }
         }
         if (gamePanel.getUi().getCommandNum() == 2) {
           System.exit(0);

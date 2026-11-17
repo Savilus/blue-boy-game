@@ -165,6 +165,10 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
     player.resetCounter();
     world.removeTemporaryObjects();
     world.setBossBattleOn(false);
+    if (restart) {
+      world.setSkeletonLordDefeated(false);
+      eventHandler.clearCompletedEvents();
+    }
     world.switchMap(MAIN_MAP);
     currentArea = Area.OUTSIDE;
     assetSetter.setMonster();

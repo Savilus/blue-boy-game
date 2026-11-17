@@ -3,7 +3,6 @@ package org.savilusGame.world;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -69,16 +68,36 @@ class WorldTest {
     assertEquals("MAP_A", world.getCurrentMap());
     assertEquals(List.of(objectA), world.currentObjects());
     assertEquals(List.of(monsterA), world.currentMonsters());
-    assertNull(world.currentNpc()); // never seeded -> null, like the legacy map access
-    assertNull(world.currentItems());
+    assertTrue(world.currentNpc().isEmpty());
+    assertTrue(world.currentItems().isEmpty());
 
     world.switchMap("MAP_B");
     assertEquals("MAP_B", world.getCurrentMap());
     assertEquals(List.of(objectB), world.currentObjects());
-    assertNull(world.currentMonsters()); // monsters only exist on MAP_A
+    assertTrue(world.currentMonsters().isEmpty());
 
     world.switchMap("MAP_A");
     assertEquals(List.of(objectA), world.currentObjects());
+  }
+
+  @Test
+  @DisplayName("all loaded maps retain non-null entity lists after reseeding")
+  void loadedMapsAreCompleteAfterReseeding() {
+    world.setObjects(Map.of());
+    world.setItems(Map.of());
+    world.setNpcs(Map.of());
+    world.setMonsters(Map.of());
+    world.setInteractiveTiles(Map.of());
+    world.setProjectiles(Map.of());
+
+    for (String map : panel.getTileManager().getGameMaps().keySet()) {
+      assertNotNull(world.objects(map));
+      assertNotNull(world.items(map));
+      assertNotNull(world.npcs(map));
+      assertNotNull(world.monsters(map));
+      assertNotNull(world.interactiveTiles(map));
+      assertNotNull(world.projectiles(map));
+    }
   }
 
   @Test
@@ -185,7 +204,7 @@ class WorldTest {
 
     assertEquals(List.of(permanentObject), world.objects("MAP_A"));
     assertEquals(List.of(permanentActor), world.npcs("MAP_A"));
-    assertTrue(world.currentItems() == null || world.currentItems().isEmpty());
+    assertTrue(world.currentItems().isEmpty());
   }
 
   @Test

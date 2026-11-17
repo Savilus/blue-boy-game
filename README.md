@@ -13,6 +13,20 @@ Build and run the tests using the Gradle wrapper:
 ./gradlew build
 ```
 
+### Saved games
+
+The game stores a versioned JSON save at `~/.blue-boy/save.json`. Saving writes
+to a temporary file in the same directory and atomically replaces the previous
+save. On first load, if no JSON save exists, the game attempts to import the
+old `save.dat` from the process working directory and keeps the original file.
+Legacy saves did not record the current map, player position, boss/event flags,
+or collected authored drops, so those values cannot be recovered during import.
+If an old serialized save is incompatible with the current `DataStorage` class,
+loading fails and the original file remains untouched.
+Regular monsters and NPCs, including movable rocks, respawn at their starting
+positions on load; temporary boss-battle doors are not saved and an unfinished
+boss encounter restarts.
+
 The game features such things as:
 1) Character system: :runner:
     - character lvl and stats

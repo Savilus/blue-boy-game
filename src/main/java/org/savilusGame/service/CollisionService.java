@@ -11,7 +11,7 @@ import org.savilusGame.entity.item.ItemDrop;
  */
 public interface CollisionService {
 
-  int INIT_INDEX = 999;
+  int INIT_INDEX = -1;
 
   /** Resolve tile (map) collision for {@code entity} and set its {@code collisionOn} flag. */
   void checkTile(CollisionBody entity);

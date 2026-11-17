@@ -6,6 +6,8 @@
     "killedUiMessage": "Killed the %s !",
     "expUiMessage": "%s + Exp!",
     "inventoryFull": "Inventory is full!",
+    "saveFailed": "Could not save the game. Check the game log.",
+    "loadFailed": "Could not load the game. Check the game log.",
     "emptyChestText": "It's empty.",
     "fullInventoryText": "\nYou cannot carry any more!",
     "collectItemText": "\nYou obtain the %s !",

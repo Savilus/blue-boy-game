@@ -49,8 +49,8 @@ import lombok.experimental.FieldDefaults;
 
 /**
  * Creates fresh items and world objects for save-game restore and inventory re-creation.
- * <p>Lookups accept both the localized name stored by current save files and the raw
- * {@link GameObject} enum constant (legacy doors were stored under {@code DOOR}).
+ * <p>Lookups prefer the stable {@link GameObject} enum constant and also accept localized
+ * names for importing older saves (legacy doors were stored under {@code DOOR}).
  * Unknown names resolve to {@code null} so load paths can skip stale entries instead of crashing.
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -95,17 +95,16 @@ public class GameEntityFactory {
     if (storedName == null) {
       return null;
     }
-    try {
-      return GameObject.getObjectFromName(storedName);
-    } catch (IllegalArgumentException ignored) {
-      // Fall through: legacy saves stored raw enum constants (e.g. doors under "DOOR").
-    }
     for (GameObject type : GameObject.values()) {
       if (type.name().equalsIgnoreCase(storedName)) {
         return type;
       }
     }
-    return null;
+    try {
+      return GameObject.getObjectFromName(storedName);
+    } catch (IllegalArgumentException ignored) {
+      return null;
+    }
   }
 
   private void initMaps() {
