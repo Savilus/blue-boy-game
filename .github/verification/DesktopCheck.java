@@ -24,16 +24,21 @@ class DesktopCheck {
     var world = panel.getWorld();
     var player = panel.getPlayer();
     var robot = new Robot();
+    SwingUtilities.invokeAndWait(() -> { Main.window.toFront(); panel.requestFocusInWindow(); });
     var origin = panel.getLocationOnScreen();
     int px = origin.x + player.getScreenX() + TILE_SIZE / 2;
     int py = origin.y + player.getScreenY() + TILE_SIZE / 2;
     try {
       until(() -> Main.window.isShowing() && panel.getGameThread().isAlive(), "title window and game thread");
-      SwingUtilities.invokeAndWait(() -> { Main.window.toFront(); panel.requestFocusInWindow(); });
+      // Warm up X11 screenshot access on the title screen, before the encounter starts.
+      robot.createScreenCapture(new Rectangle(origin, panel.getSize()));
       // Arrange a repeatable encounter before leaving the title screen.
       String map = world.getCurrentMap();
       var west = new GreenSlime(panel); west.setWorldPosition(18 * TILE_SIZE, 21 * TILE_SIZE); west.setOnPath(true);
       var east = new GreenSlime(panel); east.setWorldPosition(28 * TILE_SIZE, 21 * TILE_SIZE); east.setOnPath(true);
+      // Keep the camera and both sampled cells fixed while capturing the walkability overlays.
+      // Restore normal speeds afterwards and verify that both actors actually advance.
+      west.setSpeed(0); east.setSpeed(0);
       world.setMonsters(Map.of(map, List.of(west, east)));
       var potion = new RedPotion(panel);
       world.dropItem(potion, player.getWorldX(), player.getWorldY());
@@ -63,6 +68,8 @@ class DesktopCheck {
       key(robot, VK_CONTROL);
       until(() -> !panel.getTileManager().isPathVisible() && robot.getPixelColor(left, py).equals(beforeLeft)
           && robot.getPixelColor(right, py).equals(beforeRight), "overlay cleared");
+      west.setSpeed(west.getDefaultSpeed()); east.setSpeed(east.getDefaultSpeed());
+      until(() -> west.getWorldX() > 18 * TILE_SIZE && east.getWorldX() < 28 * TILE_SIZE, "both slimes advancing");
       robot.keyPress(VK_S);
       until(() -> player.getInventory().contains(potion) && player.isCollisionOn(), "pickup and solid door");
       robot.keyRelease(VK_S);
@@ -79,6 +86,10 @@ class DesktopCheck {
       key(robot, VK_R); until(() -> panel.getTileManager().getGameMaps().get(map) != previous, "dev reload");
       until(() -> panel.getGameThread().isAlive() && !east.remainingPath().isEmpty(), "live play after reload");
       System.out.println("::notice::Desktop smoke: Main window, new game, two visible red paths, toggle off, movement stopped by door, potion pickup, inventory, minimap, full map and dev reload OK (silent audio).");
+    } catch (AssertionError failure) {
+      System.out.println("State="+panel.getGameState()+" origin="+panel.getLocationOnScreen()+" player="+player.getWorldX()+","+player.getWorldY()
+          +" actual L/R="+robot.getPixelColor(px-TILE_SIZE,py)+"/"+robot.getPixelColor(px+TILE_SIZE,py)+" overlay="+panel.getTileManager().isPathVisible());
+      capture(robot, panel, "failure"); throw failure;
     } finally {
       robot.keyRelease(VK_S);
     }

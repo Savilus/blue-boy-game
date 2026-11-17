@@ -72,6 +72,7 @@ jobs:
           path: build/desktop-check/*.png
 
       - name: Attach compact frame previews to the verification check
+        if: always() && hashFiles('build/desktop-check/*.png') != ''
         shell: bash
         run: |
           cat > "$RUNNER_TEMP/Preview.java" <<'JAVA'
