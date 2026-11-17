@@ -186,7 +186,15 @@ class DesktopCheck {
       for (;;) {
         BufferedImage image = frame();
         if (condition.test(image)) return image;
-        if (System.nanoTime() > deadline) throw new AssertionError(description);
+        if (System.nanoTime() > deadline) {
+          int x = panel.getPlayer().getScreenX() + TILE_SIZE / 2, y = panel.getPlayer().getScreenY() + TILE_SIZE / 2;
+          var back = panel.getTempScreen();
+          throw new AssertionError("%s: screen=%s panel=%s probe=(%d,%d) live L/R=%08x/%08x back L/R=%08x/%08x terrain L/R=%08x/%08x"
+              .formatted(description, Toolkit.getDefaultToolkit().getScreenSize(), panel.getLocationOnScreen(), x, y,
+                  image.getRGB(x - TILE_SIZE, y), image.getRGB(x + TILE_SIZE, y),
+                  back.getRGB(x - TILE_SIZE, y), back.getRGB(x + TILE_SIZE, y),
+                  tileCenter(panel, 22, 21), tileCenter(panel, 24, 21)));
+        }
         Thread.sleep(20);
       }
     }

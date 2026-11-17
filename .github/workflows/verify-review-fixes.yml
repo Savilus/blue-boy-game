@@ -43,7 +43,9 @@ jobs:
           cp=$(./gradlew -q -I "$RUNNER_TEMP/classpath.gradle" reviewClasspath)
           mkdir -p "$RUNNER_TEMP/dev"
           sed 's/^  enabled: false/  enabled: true/' src/main/resources/config.yml > "$RUNNER_TEMP/dev/config.yml"
-          xvfb-run -a java -Dblueboy.dataDir="$RUNNER_TEMP/game-data" -cp "$RUNNER_TEMP/dev:$cp" .github/verification/DesktopCheck.java 2>&1 | tee "$RUNNER_TEMP/desktop.log"
+          # Match the actual framebuffer to the logical playfield. On bare Xvfb there is no
+          # window manager to reconcile JFrame's requested and native window locations.
+          xvfb-run -a -s '-screen 0 960x576x24' java -Dsun.java2d.uiScale=1 -Dblueboy.dataDir="$RUNNER_TEMP/game-data" -cp "$RUNNER_TEMP/dev:$cp" .github/verification/DesktopCheck.java 2>&1 | tee "$RUNNER_TEMP/desktop.log"
       - name: Report desktop failure
         if: failure()
         run: |
