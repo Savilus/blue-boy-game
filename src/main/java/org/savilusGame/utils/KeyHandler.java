@@ -107,19 +107,24 @@ public class KeyHandler implements KeyListener {
       }
       case KeyEvent.VK_M -> gamePanel.setGameState(MAP_STATE);
       case KeyEvent.VK_X -> gamePanel.getGameMap().setMiniMapOn(!gamePanel.getGameMap().isMiniMapOn());
-      // DEVELOPMENT-ONLY KEYS: inactive unless the game runs with -Dblueboy.dev=true
+      case KeyEvent.VK_CONTROL -> {
+        if (devMode.enabled()) {
+          gamePanel.getTileManager().togglePathVisibility();
+        }
+      }
+      // DEVELOPMENT-ONLY KEYS: inactive unless dev.enabled is true in config.yml.
       case KeyEvent.VK_G -> {
-        if (devMode.isEnabled()) {
+        if (devMode.enabled()) {
           godModeOn = !godModeOn;
         }
       }
       case KeyEvent.VK_T -> {
-        if (devMode.isEnabled()) {
+        if (devMode.enabled()) {
           showDebugText = !showDebugText;
         }
       }
       case KeyEvent.VK_R -> {
-        if (devMode.isEnabled()) {
+        if (devMode.enabled()) {
           gamePanel.getTileManager().loadMap(gamePanel.getWorld().getCurrentMap());
         }
       }

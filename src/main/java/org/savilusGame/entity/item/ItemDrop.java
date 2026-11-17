@@ -2,6 +2,7 @@ package org.savilusGame.entity.item;
 
 import java.awt.*;
 
+import lombok.Setter;
 import org.savilusGame.GamePanel;
 import org.savilusGame.entity.CollisionBody;
 import org.savilusGame.enums.Direction;
@@ -27,6 +28,7 @@ public class ItemDrop implements CollisionBody {
   final Direction direction = Direction.ANY;
   int worldX;
   int worldY;
+  @Setter
   private boolean temporaryObject = false;
 
   public ItemDrop(GamePanel gamePanel, Item item) {
@@ -36,11 +38,7 @@ public class ItemDrop implements CollisionBody {
     this.solidAreaDefaultY = this.solidArea.y;
   }
 
-  public void setTemporaryObject(boolean temporaryObject) {
-    this.temporaryObject = temporaryObject;
-  }
-
-  public ItemDrop setWorldPosition(int worldX, int worldY) {
+    public ItemDrop setWorldPosition(int worldX, int worldY) {
     this.worldX = worldX;
     this.worldY = worldY;
     return this;

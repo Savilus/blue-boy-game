@@ -41,8 +41,9 @@ boss encounter restarts.
 
 ### Development mode
 
-Cheat/debug input (god mode, debug overlay, map reload) is shipped disabled.
-Start the game with `-Dblueboy.dev=true` to enable it. The game reads all
+Cheat/debug input (god mode, debug overlay, map reload, and path visualization)
+is disabled by default. Set `dev.enabled: true` in
+`src/main/resources/config.yml` to enable it. The game reads all
 bundled texts, images, fonts, sounds and tile maps from the classpath, so it
 runs from any working directory; `src/main/resources/texts/index.json` lists
 the bundled text files and must list every file in that folder.

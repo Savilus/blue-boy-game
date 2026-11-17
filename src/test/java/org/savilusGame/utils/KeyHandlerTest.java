@@ -63,6 +63,12 @@ class KeyHandlerTest {
   }
 
   @Test
+  @DisplayName("development features are disabled in the bundled YAML by default")
+  void bundledConfigKeepsDevModeDisabled() {
+    assertFalse(DevMode.fromConfig().enabled());
+  }
+
+  @Test
   @DisplayName("development builds can still toggle god mode and the debug overlay")
   void developmentKeysWorkWithDevMode() {
     KeyHandler developerInput = new KeyHandler(panel, new DevMode(true));
@@ -72,6 +78,21 @@ class KeyHandlerTest {
 
     assertTrue(developerInput.isGodModeOn());
     assertTrue(developerInput.isShowDebugText());
+  }
+
+  @Test
+  @DisplayName("Control toggles path visualization only in development mode")
+  void pathVisualizationRequiresDevMode() {
+    KeyHandler releaseInput = new KeyHandler(panel, new DevMode(false));
+    releaseInput.keyPressed(pressed(KeyEvent.VK_CONTROL));
+    assertFalse(panel.getTileManager().isPathVisible());
+
+    KeyHandler developerInput = new KeyHandler(panel, new DevMode(true));
+    developerInput.keyPressed(pressed(KeyEvent.VK_CONTROL));
+    assertTrue(panel.getTileManager().isPathVisible());
+
+    developerInput.keyPressed(pressed(KeyEvent.VK_CONTROL));
+    assertFalse(panel.getTileManager().isPathVisible());
   }
 
   @Test

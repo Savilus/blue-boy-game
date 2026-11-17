@@ -66,7 +66,7 @@ public class TileManager {
   private final GamePanel gamePanel;
   private final Tile[] tile;
   private final Map<String, int[][]> gameMaps = new HashMap<>();
-  boolean drawPath = true;
+  boolean pathVisible;
 
   public TileManager(GamePanel gamePanel) {
     this.gamePanel = gamePanel;
@@ -139,20 +139,23 @@ public class TileManager {
       }
     }
 
-// ENABLE IF YOU WANT TO SEE A* ALGORITHM PATH FOR NPC/MONSTER
-//    if (drawPath) {
-//      g2.setColor(new Color(255, 0, 0, 70));
-//      for (var pathNode : gamePanel.pathFinder.getPathList()) {
-//        int worldX = pathNode.getCol() * TILE_SIZE;
-//        int worldY = pathNode.getRow() * TILE_SIZE;
-//        int screenX = worldX - playerWorldX + playerScreenX;
-//        int screenY = worldY - playerWorldY + playerScreenY;
-//
-//        g2.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-//      }
-//    }
+    if (pathVisible) {
+      Color originalColor = g2.getColor();
+      g2.setColor(new Color(255, 0, 0, 70));
+      for (var pathNode : gamePanel.getPathFinder().getPathList()) {
+        int worldX = pathNode.getCol() * TILE_SIZE;
+        int worldY = pathNode.getRow() * TILE_SIZE;
+        int screenX = worldX - playerWorldX + playerScreenX;
+        int screenY = worldY - playerWorldY + playerScreenY;
+        g2.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+      }
+      g2.setColor(originalColor);
+    }
   }
 
+  public void togglePathVisibility() {
+    pathVisible = !pathVisible;
+  }
 
   private void getTileImage() {
     setUp(49, BLACK_TAIL, true);
@@ -199,11 +202,9 @@ public class TileManager {
     if (index <= 9) {
       return;
     }
-    Try.run(() -> {
-      tile[index] = new Tile(
-          UtilityTool.scaleImage(ImageIO.read(Objects.requireNonNull(getClass().getResourceAsStream(imageName))),
-              TILE_SIZE, TILE_SIZE), collision
-      );
-    }).onFailure(error -> log.error("Error while setting up tile: {}", error.getMessage()));
+    Try.run(() -> tile[index] = new Tile(
+        UtilityTool.scaleImage(ImageIO.read(Objects.requireNonNull(getClass().getResourceAsStream(imageName))),
+            TILE_SIZE, TILE_SIZE), collision
+    )).onFailure(error -> log.error("Error while setting up tile: {}", error.getMessage()));
   }
 }

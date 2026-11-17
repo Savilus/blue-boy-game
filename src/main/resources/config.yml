@@ -1,3 +1,6 @@
+dev:
+  enabled: true
+
 font:
   maruMonica: /font/MaruMonica.ttf
   purisaBold: /font/PurisaBold.ttf
@@ -254,4 +257,3 @@ projectile:
       attackLeft2: /projectile/fireball_left_2.png
   rock:
     attackImage: /projectile/rock_attack.png
-

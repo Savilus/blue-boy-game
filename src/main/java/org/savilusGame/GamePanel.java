@@ -86,7 +86,7 @@ public class GamePanel extends JPanel implements Runnable, CollisionService, Pat
   static final int FPS = 60;
   final TileManager tileManager = new TileManager(this);
   final World world = new World(tileManager, MAIN_MAP);
-  final DevMode devMode = DevMode.fromSystemProperties();
+  final DevMode devMode = DevMode.fromConfig();
   final KeyHandler keyHandler = new KeyHandler(this, devMode);
   Sound music = new Sound();
   Sound soundEffect = new Sound();
