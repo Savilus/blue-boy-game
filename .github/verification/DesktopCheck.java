@@ -20,6 +20,7 @@ class DesktopCheck {
     main.setAccessible(true);
     main.invoke(null);
     var panel = (GamePanel) Main.window.getContentPane().getComponent(0);
+    if (!panel.getDevMode().enabled()) throw new AssertionError("Smoke requires its dev-mode resource override");
     var world = panel.getWorld();
     var player = panel.getPlayer();
     var robot = new Robot();
@@ -47,10 +48,18 @@ class DesktopCheck {
       key(robot, VK_ENTER);
       until(() -> panel.getGameState() == PLAY_STATE && !west.remainingPath().isEmpty() && !east.remainingPath().isEmpty(), "two chasers");
       int left = px - TILE_SIZE, right = px + TILE_SIZE;
-      Color beforeLeft = robot.getPixelColor(left, py), beforeRight = robot.getPixelColor(right, py);
+      var terrain = panel.getTileManager().getGameMaps().get(map);
+      var tiles = panel.getTileManager().getTile();
+      Color beforeLeft = new Color(tiles[terrain[22][21]].image().getRGB(TILE_SIZE / 2, TILE_SIZE / 2));
+      Color beforeRight = new Color(tiles[terrain[24][21]].image().getRGB(TILE_SIZE / 2, TILE_SIZE / 2));
+      until(() -> robot.getPixelColor(left, py).equals(beforeLeft) && robot.getPixelColor(right, py).equals(beforeRight),
+          "first PLAY frame blitted (not just updated)");
+      capture(robot, panel, "before");
+      Color redLeft = overlay(beforeLeft), redRight = overlay(beforeRight);
       key(robot, VK_CONTROL);
-      until(() -> panel.getTileManager().isPathVisible() && redder(robot.getPixelColor(left, py), beforeLeft)
-          && redder(robot.getPixelColor(right, py), beforeRight), "red paths on BOTH sides of player");
+      until(() -> panel.getTileManager().isPathVisible() && robot.getPixelColor(left, py).equals(redLeft)
+          && robot.getPixelColor(right, py).equals(redRight), "red paths on BOTH sides of player");
+      capture(robot, panel, "tracking");
       key(robot, VK_CONTROL);
       until(() -> !panel.getTileManager().isPathVisible() && robot.getPixelColor(left, py).equals(beforeLeft)
           && robot.getPixelColor(right, py).equals(beforeRight), "overlay cleared");
@@ -71,8 +80,23 @@ class DesktopCheck {
     panel.quitGame();
   }
 
-  private static boolean redder(Color after, Color before) {
-    return after.getRed() > before.getRed() && after.getGreen() < before.getGreen();
+  private static void capture(Robot robot, GamePanel panel, String name) throws Exception {
+    var bounds = new Rectangle(panel.getLocationOnScreen(), panel.getSize());
+    var path = java.nio.file.Path.of("build", "desktop-check", name + ".png");
+    java.nio.file.Files.createDirectories(path.getParent());
+    javax.imageio.ImageIO.write(robot.createScreenCapture(bounds), "png", path.toFile());
+  }
+
+  private static Color overlay(Color before) {
+    var sample = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+    sample.setRGB(0, 0, before.getRGB());
+    var graphics = sample.createGraphics();
+    try {
+      graphics.setColor(new Color(255,0,0,70)); graphics.fillRect(0,0,1,1);
+    } finally { graphics.dispose(); }
+    var expected = new Color(sample.getRGB(0,0));
+    if (expected.equals(before)) throw new AssertionError("overlay indistinguishable from ground");
+    return expected;
   }
 
   private static void key(Robot robot, int code) {

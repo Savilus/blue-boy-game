@@ -64,3 +64,9 @@ jobs:
           if test -f "$RUNNER_TEMP/desktop.log"; then
             python3 -c 'import os,pathlib; print("::error::"+ (pathlib.Path(os.environ["RUNNER_TEMP"])/"desktop.log").read_text()[-1500:].replace("\n","%0A"))'
           fi
+      - name: Retain the real frames for visual review
+        if: always() && hashFiles('build/desktop-check/*.png') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: chase-frames
+          path: build/desktop-check/*.png
